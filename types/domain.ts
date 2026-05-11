@@ -1,0 +1,244 @@
+import type { SystemRole, SiteRole } from '@/lib/auth.types';
+import type { BirStatus, Frequency, TaskStatus } from '@/lib/tracker.types';
+import type {
+  SectionTemplate,
+  TaskListTemplate,
+} from '@/lib/validations/tracker';
+
+// DB row shapes returned by /api/* — kept in one place so UI and hooks
+// agree on the contract. Keep these in sync with the SQL schema.
+
+export interface Organization {
+  id: string;
+  code: string;
+  name: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Site {
+  id: string;
+  organization_id: string;
+  code: string;
+  name: string;
+  address: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserProfile {
+  id: string;
+  name: string | null;
+  email: string;
+  image: string | null;
+  emailVerified?: string | null;
+}
+
+export interface UserSite {
+  id: string;
+  user_id: string;
+  site_id: string;
+  role: SiteRole;
+  created_at: string;
+  user?: UserProfile | null;
+}
+
+export interface OrganizationMember {
+  id: string;
+  user_id: string | null;
+  email: string;
+  organization_id: string;
+  role: SystemRole;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  user?: UserProfile | null;
+}
+
+// Returned by GET /api/users — adds a derived count of site assignments.
+export interface OrganizationMemberWithStats extends OrganizationMember {
+  sites_count: number;
+}
+
+// Returned by GET /api/users/[id]/sites — UserSite joined with its Site.
+export interface UserSiteAssignment {
+  id: string;
+  user_id: string;
+  site_id: string;
+  role: SiteRole;
+  created_at: string;
+  site: Pick<Site, 'id' | 'code' | 'name' | 'organization_id' | 'is_active'>;
+}
+
+// Tracker system ----------------------------------------------------------
+
+export interface TrackerCategory {
+  id: string;
+  organization_id: string;
+  name: string;
+  description: string | null;
+  frequency: Frequency;
+  section_templates: SectionTemplate[];
+  task_list_templates: TaskListTemplate[];
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SiteTracker {
+  id: string;
+  site_id: string;
+  tracker_category_id: string;
+  year: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Returned by GET /api/sites/[id]/trackers — embeds the category for display.
+export interface SiteTrackerWithCategory extends SiteTracker {
+  tracker_category: Pick<
+    TrackerCategory,
+    'id' | 'name' | 'description' | 'frequency'
+  >;
+}
+
+export interface Holiday {
+  id: string;
+  organization_id: string;
+  date: string;
+  name: string;
+  is_recurring: boolean;
+  created_at: string;
+}
+
+// Phase 2b: per-site instantiation of category templates ------------------
+
+export interface TrackerSection {
+  id: string;
+  site_tracker_id: string;
+  name: string;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskList {
+  id: string;
+  site_tracker_id: string;
+  tracker_section_id: string | null;
+  name: string;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Task {
+  id: string;
+  task_list_id: string;
+  name: string;
+  assigned_to: string | null;
+  frequency: Frequency;
+  skip_weekends: boolean;
+  skip_holidays: boolean;
+  is_active: boolean;
+  display_order: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Returned by the hierarchy GET — embeds the assigned-to user for display.
+export interface TaskWithAssignee extends Task {
+  assignee?: Pick<UserProfile, 'id' | 'name' | 'email' | 'image'> | null;
+}
+
+export interface TaskEntry {
+  id: string;
+  task_id: string;
+  period_date: string;
+  period_label: string;
+  due_date: string;
+  submission_date: string | null;
+  status: TaskStatus;
+  bir_status: BirStatus | null;
+  value: string | null;
+  marked_by: string | null;
+  marked_at: string | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+  marker?: Pick<UserProfile, 'id' | 'name' | 'email' | 'image'> | null;
+}
+
+export interface TaskEntriesPayload {
+  task: TaskWithAssignee & {
+    task_list: Pick<TaskList, 'id' | 'name' | 'site_tracker_id'> & {
+      site_tracker: SiteTracker & {
+        tracker_category: Pick<
+          TrackerCategory,
+          'id' | 'name' | 'description' | 'frequency'
+        >;
+        site: Pick<Site, 'id' | 'code' | 'name' | 'organization_id'>;
+      };
+    };
+  };
+  entries: TaskEntry[];
+}
+
+export interface TrackerEntriesSummary {
+  total: number;
+  not_done: number;
+  ongoing: number;
+  done: number;
+  done_late: number;
+  overdue: number;
+  completion_rate: number;
+}
+
+export interface TrackerEntriesPayload {
+  site_tracker: SiteTracker & {
+    tracker_category: TrackerCategory;
+    site: Pick<Site, 'id' | 'code' | 'name' | 'organization_id'>;
+  };
+  sections: TrackerSection[];
+  task_lists: TaskList[];
+  tasks: TaskWithAssignee[];
+  entries: TaskEntry[];
+  summary: TrackerEntriesSummary;
+}
+
+export interface DashboardSummary {
+  sites_count: number;
+  users_count: number;
+  entries_total: number;
+  overdue_count: number;
+  due_next_7_days: number;
+  completion_rate: number;
+  by_status: Array<{ status: TaskStatus; count: number }>;
+  by_site: Array<{ site_id: string; site_name: string; completion_rate: number }>;
+  by_assignee: Array<{
+    user_id: string;
+    name: string;
+    overdue_count: number;
+    completion_rate: number;
+  }>;
+  overdue_entries: Array<
+    TaskEntry & {
+      task?: Pick<Task, 'id' | 'name' | 'assigned_to'> & {
+        assignee?: Pick<UserProfile, 'id' | 'name' | 'email' | 'image'> | null;
+      };
+    }
+  >;
+  upcoming_entries: Array<
+    TaskEntry & {
+      task?: Pick<Task, 'id' | 'name' | 'assigned_to'> & {
+        assignee?: Pick<UserProfile, 'id' | 'name' | 'email' | 'image'> | null;
+      };
+    }
+  >;
+}

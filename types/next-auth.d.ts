@@ -1,5 +1,6 @@
 import 'next-auth';
 import 'next-auth/jwt';
+import type { SystemRole } from '@/lib/auth.types';
 
 declare module 'next-auth' {
   interface Session {
@@ -10,7 +11,7 @@ declare module 'next-auth' {
       image?: string | null;
     };
     userRole?: {
-      role: 'admin' | 'manager' | 'accountant';
+      role: SystemRole;
       organization_id: string | null;
       is_active: boolean;
     };
@@ -32,10 +33,9 @@ declare module 'next-auth/jwt' {
     name?: string | null;
     email?: string | null;
     userRole?: {
-      role: 'admin' | 'manager' | 'accountant';
+      role: SystemRole;
       organization_id: string | null;
       is_active: boolean;
     };
   }
 }
-

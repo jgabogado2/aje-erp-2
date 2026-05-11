@@ -65,17 +65,25 @@ export async function middleware(request: NextRequest) {
     secret: process.env.AUTH_SECRET,
   });
 
+  const isApi = pathname.startsWith('/api/');
+
   // No token = not authenticated
   if (!token) {
+    if (isApi) {
+      return NextResponse.json(
+        { data: null, error: 'unauthorized', message: 'Not authenticated' },
+        { status: 401 }
+      );
+    }
     const signInUrl = new URL('/signin', request.url);
     signInUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(signInUrl);
   }
 
-  // Check admin paths require admin role
+  // Check admin paths require SUPER_ADMIN role
   if (isAdminPath(pathname)) {
     const userRole = token.userRole as { role?: string } | undefined;
-    if (!userRole || userRole.role !== 'admin') {
+    if (!userRole || userRole.role !== 'SUPER_ADMIN') {
       return NextResponse.redirect(new URL('/unauthorized', request.url));
     }
   }

@@ -1,32 +1,25 @@
 "use client";
 
+import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { AppShell } from "@/components/layout";
+import type { NavSection } from "@/components/layout";
 
-// Custom navigation for the dashboard
-const navigation = [
+// Base navigation for every signed-in user. Trackers/Calendar are stubs that
+// will be wired up in Phase 2 — leaving them out until then keeps the nav
+// honest. Settings stays in the bottom group via the default AppShell footer.
+const baseNavigation: NavSection[] = [
   {
-    items: [
-      { title: "Home", href: "/", icon: "home" as const },
-      { title: "Projects", href: "/projects", icon: "projects" as const, badge: "12" },
-      { title: "Tasks", href: "/tasks", icon: "tasks" as const },
-    ],
-  },
-  {
-    title: "Workspace",
-    items: [
-      { title: "Calendar", href: "/calendar", icon: "calendar" as const },
-      { title: "Team", href: "/team", icon: "team" as const },
-      { title: "Analytics", href: "/analytics", icon: "analytics" as const },
-    ],
+    items: [{ title: "Home", href: "/", icon: "home" as const }],
   },
 ];
 
-// Admin navigation section - only shown to admins
-const adminNavigation = {
+const adminNavigation: NavSection = {
   title: "Administration",
   items: [
-    { title: "User Management", href: "/admin/users", icon: "team" as const },
+    { title: "Sites", href: "/admin/sites", icon: "projects" as const },
+    { title: "Trackers", href: "/admin/trackers", icon: "tasks" as const },
+    { title: "Users", href: "/admin/users", icon: "team" as const },
   ],
 };
 
@@ -36,21 +29,12 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { data: session } = useSession();
-  const isAdmin = session?.userRole?.role === "admin";
+  const isSuperAdmin = session?.userRole?.role === "SUPER_ADMIN";
 
-  // Build navigation based on user role
-  const fullNavigation = isAdmin
-    ? [...navigation, adminNavigation]
-    : navigation;
-
-  return (
-    <AppShell
-      navigation={fullNavigation}
-      onSearchClick={() => console.log("Search clicked")}
-      onNotificationsClick={() => console.log("Notifications clicked")}
-      onNewClick={() => console.log("New clicked")}
-    >
-      {children}
-    </AppShell>
+  const navigation = useMemo<NavSection[]>(
+    () => (isSuperAdmin ? [...baseNavigation, adminNavigation] : baseNavigation),
+    [isSuperAdmin]
   );
+
+  return <AppShell navigation={navigation}>{children}</AppShell>;
 }

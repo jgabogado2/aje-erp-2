@@ -255,9 +255,9 @@ export const authConfig: NextAuthOptions = {
         // Add role information from token
         if (token.userRole) {
           session.userRole = {
-            role: token.userRole.role as 'admin' | 'manager' | 'accountant',
-            organization_id: token.userRole.organization_id as string | null,
-            is_active: token.userRole.is_active as boolean,
+            role: token.userRole.role,
+            organization_id: token.userRole.organization_id,
+            is_active: token.userRole.is_active,
           };
         }
       }

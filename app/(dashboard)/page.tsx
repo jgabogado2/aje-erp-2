@@ -1,93 +1,54 @@
-"use client";
+'use client';
 
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import Link from 'next/link';
+import { useSession } from 'next-auth/react';
+import {
+  Building2,
+  Users,
+  AlertCircle,
+  CheckCircle2,
+  Clock3,
+  CalendarDays,
+} from 'lucide-react';
 import {
   PageContainer,
   PageSection,
   PageCard,
   PageEmptyState,
-} from "@/components/layout";
+} from '@/components/layout';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { useSites } from '@/hooks/use-sites';
+import { useUsers } from '@/hooks/use-users';
+import { useDashboardSummary } from '@/hooks/use-dashboard-summary';
+import { useAppStore } from '@/stores/app-store';
+import type { SystemRole } from '@/lib/auth.types';
 
-// Icons for the demo
-const Icons = {
-  plus: (props: React.SVGProps<SVGSVGElement>) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  ),
-  download: (props: React.SVGProps<SVGSVGElement>) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-  ),
-  folder: (props: React.SVGProps<SVGSVGElement>) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-    </svg>
-  ),
-  check: (props: React.SVGProps<SVGSVGElement>) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  ),
-  clock: (props: React.SVGProps<SVGSVGElement>) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
-  ),
-  users: (props: React.SVGProps<SVGSVGElement>) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  ),
-  arrowRight: (props: React.SVGProps<SVGSVGElement>) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-      <line x1="5" y1="12" x2="19" y2="12" />
-      <polyline points="12 5 19 12 12 19" />
-    </svg>
-  ),
+const ROLE_LABEL: Record<SystemRole, string> = {
+  SUPER_ADMIN: 'Super Admin',
+  SITE_MANAGER: 'Site Manager',
+  STAFF: 'Staff',
 };
 
-// Sample data for the demo
-const stats = [
-  { label: "Active Projects", value: "12", change: "+2", icon: Icons.folder },
-  { label: "Tasks Completed", value: "48", change: "+12", icon: Icons.check },
-  { label: "Hours Logged", value: "164", change: "+8", icon: Icons.clock },
-  { label: "Team Members", value: "8", change: "+1", icon: Icons.users },
-];
-
-const recentProjects = [
-  { name: "Website Redesign", status: "In Progress", tasks: 24, completed: 18 },
-  { name: "Mobile App v2.0", status: "Planning", tasks: 12, completed: 0 },
-  { name: "API Integration", status: "In Review", tasks: 8, completed: 7 },
-  { name: "Documentation", status: "In Progress", tasks: 15, completed: 10 },
-];
-
-const recentTasks = [
-  { title: "Update user dashboard", project: "Website Redesign", priority: "High", dueDate: "Today" },
-  { title: "Review API endpoints", project: "API Integration", priority: "Medium", dueDate: "Tomorrow" },
-  { title: "Write unit tests", project: "Mobile App v2.0", priority: "Low", dueDate: "Jan 30" },
-  { title: "Update README", project: "Documentation", priority: "Low", dueDate: "Jan 31" },
-];
-
-function StatCard({ stat }: { stat: typeof stats[0] }) {
-  const Icon = stat.icon;
+function StatCard({
+  label,
+  value,
+  description,
+  icon: Icon,
+}: {
+  label: string;
+  value: string | number;
+  description?: string;
+  icon: React.ComponentType<{ className?: string }>;
+}) {
   return (
     <PageCard className="flex items-start justify-between">
       <div>
-        <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
-        <p className="mt-2 text-3xl font-semibold tracking-tight">{stat.value}</p>
-        <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">
-          {stat.change} this week
-        </p>
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <p className="mt-2 text-3xl font-semibold tracking-tight">{value}</p>
+        {description && (
+          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+        )}
       </div>
       <div className="rounded-lg bg-primary/10 p-3">
         <Icon className="h-5 w-5 text-primary" />
@@ -96,157 +57,243 @@ function StatCard({ stat }: { stat: typeof stats[0] }) {
   );
 }
 
-function ProjectCard({ project }: { project: typeof recentProjects[0] }) {
-  const progress = project.tasks > 0 ? (project.completed / project.tasks) * 100 : 0;
-  
+function SuperAdminDashboard() {
+  const sitesQuery = useSites();
+  const usersQuery = useUsers();
+  const summaryQuery = useDashboardSummary();
+
+  const sites = sitesQuery.data ?? [];
+  const users = usersQuery.data ?? [];
+  const summary = summaryQuery.data;
+
   return (
-    <div className="group flex items-center justify-between rounded-lg border border-border p-4 transition-colors hover:bg-muted/50">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <h4 className="truncate font-medium">{project.name}</h4>
-          <Badge
-            variant={
-              project.status === "In Progress"
-                ? "default"
-                : project.status === "Planning"
-                ? "secondary"
-                : "outline"
-            }
-            className="text-xs"
-          >
-            {project.status}
-          </Badge>
-        </div>
-        <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
-          <span>{project.completed}/{project.tasks} tasks</span>
-          <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
+    <>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Sites"
+          value={sitesQuery.isLoading ? '—' : sites.length}
+          description={`${sites.filter((s) => s.is_active).length} active`}
+          icon={Building2}
+        />
+        <StatCard
+          label="Members"
+          value={usersQuery.isLoading ? '—' : users.length}
+          description={`${users.filter((u) => u.is_active).length} active`}
+          icon={Users}
+        />
+        <StatCard
+          label="Completion"
+          value={summaryQuery.isLoading ? '—' : `${summary?.completion_rate ?? 0}%`}
+          description={`${summary?.entries_total ?? 0} entries tracked`}
+          icon={CheckCircle2}
+        />
+        <StatCard
+          label="Overdue"
+          value={summaryQuery.isLoading ? '—' : summary?.overdue_count ?? 0}
+          description={`${summary?.due_next_7_days ?? 0} due in 7 days`}
+          icon={Clock3}
+        />
       </div>
-      <Button variant="ghost" size="icon" className="opacity-0 transition-opacity group-hover:opacity-100">
-        <Icons.arrowRight className="h-4 w-4" />
-      </Button>
-    </div>
+
+      <DashboardLists summary={summary} />
+
+      <PageSection
+        title="Sites"
+        description="Offices and locations under your organization."
+        actions={
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/admin/sites">Manage</Link>
+          </Button>
+        }
+      >
+        <PageCard>
+          {sitesQuery.isLoading ? (
+            <div className="p-6 text-sm text-muted-foreground">Loading…</div>
+          ) : sites.length === 0 ? (
+            <PageEmptyState
+              title="No sites yet"
+              description="Create your first site to start assigning trackers and users."
+              action={
+                <Button asChild>
+                  <Link href="/admin/sites">Create a site</Link>
+                </Button>
+              }
+            />
+          ) : (
+            <ul className="divide-y divide-border">
+              {sites.slice(0, 6).map((site) => (
+                <li
+                  key={site.id}
+                  className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{site.name}</p>
+                    <p className="truncate font-mono text-xs text-muted-foreground">
+                      {site.code}
+                    </p>
+                  </div>
+                  <Badge variant={site.is_active ? 'default' : 'secondary'}>
+                    {site.is_active ? 'Active' : 'Inactive'}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </PageCard>
+      </PageSection>
+    </>
   );
 }
 
-function TaskRow({ task }: { task: typeof recentTasks[0] }) {
+function MemberDashboard({ role }: { role: SystemRole }) {
+  const sitesQuery = useSites();
+  const currentSiteId = useAppStore((s) => s.currentSiteId);
+  const summaryQuery = useDashboardSummary(
+    currentSiteId ? { site_id: currentSiteId } : undefined
+  );
+  const sites = sitesQuery.data ?? [];
+  const currentSite = sites.find((s) => s.id === currentSiteId) ?? null;
+
+  if (sitesQuery.isLoading) {
+    return (
+      <div className="p-6 text-sm text-muted-foreground">Loading your sites…</div>
+    );
+  }
+
+  if (sites.length === 0) {
+    return (
+      <PageCard>
+        <PageEmptyState
+          icon={<AlertCircle className="h-8 w-8" />}
+          title="No site access yet"
+          description="You haven't been assigned to any sites yet. Ask a Super Admin to add you to a site so you can start working."
+        />
+      </PageCard>
+    );
+  }
+
   return (
-    <div className="flex items-center justify-between py-3">
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{task.title}</p>
-        <p className="text-sm text-muted-foreground">{task.project}</p>
+    <>
+      <PageCard>
+        <div className="flex items-center gap-4">
+          <div className="rounded-lg bg-primary/10 p-3">
+            <Building2 className="h-6 w-6 text-primary" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Current site
+            </p>
+            <p className="truncate text-xl font-semibold">
+              {currentSite?.name ?? 'Pick a site from the switcher above'}
+            </p>
+            {currentSite && (
+              <p className="font-mono text-xs text-muted-foreground">
+                {currentSite.code}
+              </p>
+            )}
+          </div>
+          <Badge variant="secondary">{ROLE_LABEL[role]}</Badge>
+        </div>
+      </PageCard>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Completion"
+          value={summaryQuery.isLoading ? '—' : `${summaryQuery.data?.completion_rate ?? 0}%`}
+          description={`${summaryQuery.data?.entries_total ?? 0} entries tracked`}
+          icon={CheckCircle2}
+        />
+        <StatCard
+          label="Overdue"
+          value={summaryQuery.isLoading ? '—' : summaryQuery.data?.overdue_count ?? 0}
+          description="Need attention"
+          icon={Clock3}
+        />
+        <StatCard
+          label="Due soon"
+          value={summaryQuery.isLoading ? '—' : summaryQuery.data?.due_next_7_days ?? 0}
+          description="Next 7 days"
+          icon={CalendarDays}
+        />
       </div>
-      <div className="flex items-center gap-3">
-        <Badge
-          variant={
-            task.priority === "High"
-              ? "destructive"
-              : task.priority === "Medium"
-              ? "default"
-              : "secondary"
-          }
-          className="text-xs"
-        >
-          {task.priority}
-        </Badge>
-        <span className="w-20 text-right text-sm text-muted-foreground">
-          {task.dueDate}
-        </span>
-      </div>
+
+      <DashboardLists summary={summaryQuery.data} />
+    </>
+  );
+}
+
+function DashboardLists({ summary }: { summary?: ReturnType<typeof useDashboardSummary>['data'] }) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <PageSection title="Overdue">
+        <PageCard>
+          {summary?.overdue_entries.length ? (
+            <ul className="divide-y">
+              {summary.overdue_entries.map((entry) => (
+                <li key={entry.id} className="py-3 first:pt-0 last:pb-0">
+                  <p className="text-sm font-medium">{entry.task?.name ?? 'Task entry'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {entry.period_label} · due {entry.due_date}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">No overdue entries.</p>
+          )}
+        </PageCard>
+      </PageSection>
+      <PageSection title="Upcoming">
+        <PageCard>
+          {summary?.upcoming_entries.length ? (
+            <ul className="divide-y">
+              {summary.upcoming_entries.map((entry) => (
+                <li key={entry.id} className="py-3 first:pt-0 last:pb-0">
+                  <p className="text-sm font-medium">{entry.task?.name ?? 'Task entry'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {entry.period_label} · due {entry.due_date}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">Nothing due in the next 7 days.</p>
+          )}
+        </PageCard>
+      </PageSection>
     </div>
   );
 }
 
 export default function DashboardPage() {
+  const { data: session, status } = useSession();
+
+  if (status === 'loading') return null;
+
+  const role = session?.userRole?.role;
+  const name = session?.user?.name?.split(' ')[0] ?? 'there';
+
   return (
     <PageContainer
-      title="Dashboard"
-      description="Welcome back! Here's what's happening with your projects."
-      breadcrumbs={[
-        { label: "Home", href: "/" },
-        { label: "Dashboard" },
-      ]}
-      actions={
-        <>
-          <Button variant="outline" size="sm" className="hidden sm:flex">
-            <Icons.download className="mr-2 h-4 w-4" />
-            Export
-          </Button>
-          <Button size="sm">
-            <Icons.plus className="mr-2 h-4 w-4" />
-            New Project
-          </Button>
-        </>
-      }
+      title={`Welcome back, ${name}`}
+      description="Your day at a glance."
+      breadcrumbs={[{ label: 'Home' }]}
     >
-      {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <StatCard key={stat.label} stat={stat} />
-        ))}
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="mt-8 grid gap-8 lg:grid-cols-2">
-        {/* Recent Projects */}
-        <PageSection
-          title="Recent Projects"
-          description="Your most recently updated projects"
-          actions={
-            <Button variant="ghost" size="sm">
-              View all
-            </Button>
-          }
-        >
-          <div className="space-y-3">
-            {recentProjects.map((project) => (
-              <ProjectCard key={project.name} project={project} />
-            ))}
-          </div>
-        </PageSection>
-
-        {/* Recent Tasks */}
-        <PageSection
-          title="Upcoming Tasks"
-          description="Tasks due in the next 7 days"
-          actions={
-            <Button variant="ghost" size="sm">
-              View all
-            </Button>
-          }
-        >
-          <PageCard className="divide-y divide-border">
-            {recentTasks.map((task) => (
-              <TaskRow key={task.title} task={task} />
-            ))}
+      <div className="space-y-8">
+        {role === 'SUPER_ADMIN' ? (
+          <SuperAdminDashboard />
+        ) : role ? (
+          <MemberDashboard role={role} />
+        ) : (
+          <PageCard>
+            <PageEmptyState
+              icon={<AlertCircle className="h-8 w-8" />}
+              title="Account not provisioned"
+              description="Your account hasn't been linked to an organization yet. Contact your administrator."
+            />
           </PageCard>
-        </PageSection>
+        )}
       </div>
-
-      {/* Empty State Example (commented out for demo) */}
-      {/* 
-      <PageSection title="Empty State Example" className="mt-8">
-        <PageCard>
-          <PageEmptyState
-            icon={<Icons.folder className="h-8 w-8" />}
-            title="No projects yet"
-            description="Get started by creating your first project. Projects help you organize tasks and collaborate with your team."
-            action={
-              <Button>
-                <Icons.plus className="mr-2 h-4 w-4" />
-                Create Project
-              </Button>
-            }
-          />
-        </PageCard>
-      </PageSection>
-      */}
     </PageContainer>
   );
 }
-

@@ -2,17 +2,34 @@
 
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useMemo, useState, Suspense } from 'react';
 
 function SignInContent() {
   const { status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const callbackUrl = searchParams.get('callbackUrl') || '/';
   const errorParam = searchParams.get('error');
+  const oauthError = useMemo(() => {
+    switch (errorParam) {
+      case 'OAuthSignin':
+      case 'OAuthCallback':
+      case 'OAuthCreateAccount':
+        return 'There was a problem signing in with Google. Please try again.';
+      case 'AccessDenied':
+        return 'Access denied. Your email may not be authorized to use this application.';
+      case 'Verification':
+        return 'The verification link has expired or has already been used.';
+      case null:
+        return null;
+      default:
+        return 'An error occurred during sign in. Please try again.';
+    }
+  }, [errorParam]);
+  const error = localError ?? oauthError;
 
   useEffect(() => {
     // If already authenticated, redirect to callback URL
@@ -21,34 +38,13 @@ function SignInContent() {
     }
   }, [status, router, callbackUrl]);
 
-  useEffect(() => {
-    // Handle OAuth errors
-    if (errorParam) {
-      switch (errorParam) {
-        case 'OAuthSignin':
-        case 'OAuthCallback':
-        case 'OAuthCreateAccount':
-          setError('There was a problem signing in with Google. Please try again.');
-          break;
-        case 'AccessDenied':
-          setError('Access denied. Your email may not be authorized to use this application.');
-          break;
-        case 'Verification':
-          setError('The verification link has expired or has already been used.');
-          break;
-        default:
-          setError('An error occurred during sign in. Please try again.');
-      }
-    }
-  }, [errorParam]);
-
   const handleGoogleSignIn = async () => {
     try {
       setIsLoading(true);
-      setError(null);
+      setLocalError(null);
       await signIn('google', { callbackUrl });
     } catch {
-      setError('An error occurred. Please try again.');
+      setLocalError('An error occurred. Please try again.');
       setIsLoading(false);
     }
   };
@@ -188,4 +184,3 @@ export default function SignInPage() {
     </Suspense>
   );
 }
-

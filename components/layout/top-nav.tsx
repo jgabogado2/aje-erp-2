@@ -22,6 +22,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { SiteSwitcher } from "@/components/layout/site-switcher";
 
 // Icons
 const Icons = {
@@ -167,7 +168,7 @@ export function TopNav({
   const isAuthenticated = status === "authenticated" && session?.user;
   const user = session?.user;
   const userRole = session?.userRole;
-  const isAdmin = userRole?.role === "admin";
+  const isAdmin = userRole?.role === "SUPER_ADMIN";
 
   return (
     <TooltipProvider>
@@ -185,6 +186,9 @@ export function TopNav({
         <div className="flex w-full items-center gap-4 px-4 md:px-6">
           {/* Left slot - typically mobile menu */}
           {leftSlot && <div className="flex items-center md:hidden">{leftSlot}</div>}
+
+          {/* Site switcher */}
+          <SiteSwitcher />
 
           {/* Search */}
           <Button

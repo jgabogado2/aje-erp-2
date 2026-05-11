@@ -1,14 +1,12 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
+import type { SystemRole } from '@/lib/auth.types';
 
-/**
- * Organization member entry from the database (whitelist entry)
- */
 export interface OrganizationMember {
   id: string;
-  user_id: string | null; // Nullable until user signs in
-  email: string; // Whitelisted email
+  user_id: string | null;
+  email: string;
   organization_id: string;
-  role: 'admin' | 'manager' | 'accountant';
+  role: SystemRole;
   invited_by: string | null;
   is_active: boolean;
   notes: string | null;
@@ -16,11 +14,8 @@ export interface OrganizationMember {
   updated_at: string;
 }
 
-/**
- * User role information
- */
 export interface UserRole {
-  role: 'admin' | 'manager' | 'accountant';
+  role: SystemRole;
   organization_id: string | null;
   is_active: boolean;
 }
@@ -115,7 +110,7 @@ export async function getUserRole(userId: string): Promise<UserRole | null> {
     }
 
     return {
-      role: memberData.role as 'admin' | 'manager' | 'accountant',
+      role: memberData.role as SystemRole,
       organization_id: memberData.organization_id,
       is_active: memberData.is_active,
     };
