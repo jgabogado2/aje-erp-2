@@ -231,7 +231,7 @@ function DashboardLists({ summary }: { summary?: ReturnType<typeof useDashboardS
             <ul className="divide-y">
               {summary.overdue_entries.map((entry) => (
                 <li key={entry.id} className="py-3 first:pt-0 last:pb-0">
-                  <p className="text-sm font-medium">{entry.task?.name ?? 'Task entry'}</p>
+                  <p className="text-sm font-medium">{entry.task_list?.name ?? 'Task entry'}</p>
                   <p className="text-xs text-muted-foreground">
                     {entry.period_label} · due {entry.due_date}
                   </p>
@@ -249,7 +249,7 @@ function DashboardLists({ summary }: { summary?: ReturnType<typeof useDashboardS
             <ul className="divide-y">
               {summary.upcoming_entries.map((entry) => (
                 <li key={entry.id} className="py-3 first:pt-0 last:pb-0">
-                  <p className="text-sm font-medium">{entry.task?.name ?? 'Task entry'}</p>
+                  <p className="text-sm font-medium">{entry.task_list?.name ?? 'Task entry'}</p>
                   <p className="text-xs text-muted-foreground">
                     {entry.period_label} · due {entry.due_date}
                   </p>

@@ -10,12 +10,19 @@ import type { BirStatus, Frequency, TaskStatus } from '@/lib/tracker.types';
 
 export const MANILA_TIME_ZONE = 'Asia/Manila';
 
-export interface TaskEngineTask {
+// After migration 007, the entry-generating row is `task_lists` ("task
+// item" in the UI). The engine itself is agnostic — it just needs
+// frequency + skip rules + an id to stamp on each draft.
+export interface TaskEngineItem {
+  /** task_lists.id — written onto the draft as task_list_id. */
   id?: string;
   frequency: Frequency;
   skip_weekends?: boolean | null;
   skip_holidays?: boolean | null;
 }
+
+// Back-compat alias for older imports that still use the pre-migration name.
+export type TaskEngineTask = TaskEngineItem;
 
 export interface HolidayInput {
   date: string;
@@ -23,7 +30,7 @@ export interface HolidayInput {
 }
 
 export interface TaskEntryDraft {
-  task_id?: string;
+  task_list_id?: string;
   period_date: string;
   period_label: string;
   due_date: string;
@@ -32,10 +39,11 @@ export interface TaskEntryDraft {
   bir_status: BirStatus | null;
   value: string | null;
   note: string | null;
+  subtask_completions: string[];
 }
 
-export function generateEntriesForTask(
-  task: TaskEngineTask,
+export function generateEntriesForTaskItem(
+  task: TaskEngineItem,
   year: number,
   holidays: HolidayInput[]
 ): TaskEntryDraft[] {
@@ -101,7 +109,7 @@ export function todayInManila(now: Date = new Date()): string {
 }
 
 function generateDaily(
-  task: TaskEngineTask,
+  task: TaskEngineItem,
   year: number,
   holidays: HolidayInput[]
 ): TaskEntryDraft[] {
@@ -123,7 +131,7 @@ function generateDaily(
   return result;
 }
 
-function generateWeekly(task: TaskEngineTask, year: number): TaskEntryDraft[] {
+function generateWeekly(task: TaskEngineItem, year: number): TaskEntryDraft[] {
   const result: TaskEntryDraft[] = [];
   let weekStart = startOfWeekMonday(utcDate(year, 0, 1));
   const yearEnd = utcDate(year, 11, 31);
@@ -147,21 +155,21 @@ function generateWeekly(task: TaskEngineTask, year: number): TaskEntryDraft[] {
   return result;
 }
 
-function generateMonthly(task: TaskEngineTask, year: number): TaskEntryDraft[] {
+function generateMonthly(task: TaskEngineItem, year: number): TaskEntryDraft[] {
   return Array.from({ length: 12 }, (_, month) => {
     const start = utcDate(year, month, 1);
     return draft(task, dateOnly(start), format(start, 'MMMM'), dateOnly(endOfMonth(start)));
   });
 }
 
-function generateQuarterly(task: TaskEngineTask, year: number): TaskEntryDraft[] {
+function generateQuarterly(task: TaskEngineItem, year: number): TaskEntryDraft[] {
   return [0, 3, 6, 9].map((month, idx) => {
     const start = utcDate(year, month, 1);
     return draft(task, dateOnly(start), `${idx + 1}Q`, dateOnly(endOfQuarter(start)));
   });
 }
 
-function generateBirQuarterly(task: TaskEngineTask, year: number): TaskEntryDraft[] {
+function generateBirQuarterly(task: TaskEngineItem, year: number): TaskEntryDraft[] {
   return [2, 5, 8, 11].map((month, idx) => {
     const period = utcDate(year, month, 1);
     const quarterStart = utcDate(year, month - 2, 1);
@@ -170,13 +178,13 @@ function generateBirQuarterly(task: TaskEngineTask, year: number): TaskEntryDraf
 }
 
 function draft(
-  task: TaskEngineTask,
+  task: TaskEngineItem,
   periodDate: string,
   periodLabel: string,
   dueDate: string
 ): TaskEntryDraft {
   return {
-    task_id: task.id,
+    task_list_id: task.id,
     period_date: periodDate,
     period_label: periodLabel,
     due_date: dueDate,
@@ -185,8 +193,13 @@ function draft(
     bir_status: task.frequency === 'BIR' ? 'NO_SUBMISSION' : null,
     value: null,
     note: null,
+    subtask_completions: [],
   };
 }
+
+// Back-compat alias — old call sites used this name. Will be removed once
+// every caller has been migrated to generateEntriesForTaskItem.
+export const generateEntriesForTask = generateEntriesForTaskItem;
 
 function buildHolidaySet(holidays: HolidayInput[], year: number): Set<string> {
   const set = new Set<string>();

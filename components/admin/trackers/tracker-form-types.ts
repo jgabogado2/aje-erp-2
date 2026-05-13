@@ -15,6 +15,7 @@ export interface TrackerFormTaskList {
   name: string;
   /** Stable id of the parent section, never the section name. */
   section_id: string;
+  frequency: Frequency;
 }
 
 export interface TrackerFormValues {

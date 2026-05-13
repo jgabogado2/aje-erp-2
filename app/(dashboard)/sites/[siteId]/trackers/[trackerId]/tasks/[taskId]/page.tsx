@@ -91,12 +91,11 @@ export default function TaskEntriesPage({ params }: PageProps) {
     );
   }
 
-  const task = payload.task;
-  const taskList = task.task_list;
+  const taskList = payload.task_list;
   const tracker = taskList.site_tracker;
   const category = tracker.tracker_category;
   const site = tracker.site;
-  const isBir = task.frequency === 'BIR';
+  const isBir = taskList.frequency === 'BIR';
   const canRegenerate =
     session.userRole?.role === 'SUPER_ADMIN' || session.userRole?.role === 'SITE_MANAGER';
 
@@ -114,10 +113,10 @@ export default function TaskEntriesPage({ params }: PageProps) {
         { label: 'Sites', href: '/admin/sites' },
         { label: site.name, href: `/sites/${siteId}` },
         { label: category.name, href: `/sites/${siteId}/trackers/${trackerId}` },
-        { label: task.name },
+        { label: taskList.name },
       ]}
-      title={task.name}
-      description={`${taskList.name} · ${category.name} · ${tracker.year}`}
+      title={taskList.name}
+      description={`${category.name} · ${tracker.year}`}
       actions={
         canRegenerate ? (
           <Button
@@ -148,6 +147,7 @@ export default function TaskEntriesPage({ params }: PageProps) {
               <TableHead>Due</TableHead>
               <TableHead>Status</TableHead>
               {isBir && <TableHead>BIR</TableHead>}
+              {taskList.subtasks.length > 0 && <TableHead>Subtasks</TableHead>}
               <TableHead>Submission</TableHead>
               <TableHead>Note</TableHead>
               <TableHead>Marked</TableHead>
@@ -157,10 +157,10 @@ export default function TaskEntriesPage({ params }: PageProps) {
             {payload.entries.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={isBir ? 7 : 6}
+                  colSpan={(isBir ? 7 : 6) + (taskList.subtasks.length > 0 ? 1 : 0)}
                   className="h-24 text-center text-muted-foreground"
                 >
-                  No entries generated for this task.
+                  No entries generated for this task item.
                 </TableCell>
               </TableRow>
             ) : (
@@ -203,6 +203,31 @@ export default function TaskEntriesPage({ params }: PageProps) {
                           </option>
                         ))}
                       </Select>
+                    </TableCell>
+                  )}
+                  {taskList.subtasks.length > 0 && (
+                    <TableCell>
+                      <div className="grid min-w-48 gap-1">
+                        {taskList.subtasks.map((subtask) => {
+                          const completed = entry.subtask_completions.includes(subtask.id);
+                          return (
+                            <label key={subtask.id} className="flex items-center gap-2 text-xs">
+                              <input
+                                type="checkbox"
+                                checked={completed}
+                                onChange={(event) => {
+                                  const next = event.currentTarget.checked
+                                    ? [...entry.subtask_completions, subtask.id]
+                                    : entry.subtask_completions.filter((id) => id !== subtask.id);
+                                  patchEntry(entry, { subtask_completions: next });
+                                }}
+                                disabled={updateEntry.isPending}
+                              />
+                              <span>{subtask.name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
                     </TableCell>
                   )}
                   <TableCell>

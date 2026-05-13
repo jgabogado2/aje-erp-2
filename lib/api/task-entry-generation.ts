@@ -1,9 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { generateEntriesForTask, todayInManila } from '@/lib/task-engine';
+import { generateEntriesForTaskItem, todayInManila } from '@/lib/task-engine';
 import type { Frequency } from '@/lib/tracker.types';
 
-interface TaskGenerationContext {
-  task: {
+// After migration 007, entries are generated PER task_list ("task item"),
+// not per task. This module is the DB-side bridge between the pure engine
+// in lib/task-engine.ts and the live Supabase tables.
+
+interface TaskItemGenerationContext {
+  taskList: {
     id: string;
     frequency: Frequency;
     skip_weekends: boolean;
@@ -15,22 +19,20 @@ interface TaskGenerationContext {
 
 type SupabaseAdmin = SupabaseClient;
 
-export async function getTaskGenerationContext(
+export async function getTaskItemGenerationContext(
   supabase: SupabaseAdmin,
-  taskId: string
-): Promise<TaskGenerationContext | null> {
+  taskListId: string
+): Promise<TaskItemGenerationContext | null> {
   const { data, error } = await supabase
-    .from('tasks')
+    .from('task_lists')
     .select(`
       id, frequency, skip_weekends, skip_holidays,
-      task_list:task_lists!inner(
-        site_tracker:site_trackers!inner(
-          year,
-          site:sites!inner(organization_id)
-        )
+      site_tracker:site_trackers!inner(
+        year,
+        site:sites!inner(organization_id)
       )
     `)
-    .eq('id', taskId)
+    .eq('id', taskListId)
     .maybeSingle();
 
   if (error) throw error;
@@ -41,32 +43,30 @@ export async function getTaskGenerationContext(
     frequency: Frequency;
     skip_weekends: boolean;
     skip_holidays: boolean;
-    task_list: {
-      site_tracker: {
-        year: number;
-        site: { organization_id: string };
-      };
+    site_tracker: {
+      year: number;
+      site: { organization_id: string };
     };
   };
 
   return {
-    task: {
+    taskList: {
       id: row.id,
       frequency: row.frequency,
       skip_weekends: row.skip_weekends,
       skip_holidays: row.skip_holidays,
     },
-    year: row.task_list.site_tracker.year,
-    organizationId: row.task_list.site_tracker.site.organization_id,
+    year: row.site_tracker.year,
+    organizationId: row.site_tracker.site.organization_id,
   };
 }
 
-export async function generateEntriesForTaskInDb(
+export async function generateEntriesForTaskListInDb(
   supabase: SupabaseAdmin,
-  taskId: string,
+  taskListId: string,
   options: { fromDate?: string } = {}
 ) {
-  const context = await getTaskGenerationContext(supabase, taskId);
+  const context = await getTaskItemGenerationContext(supabase, taskListId);
   if (!context) return { inserted: 0 };
 
   const { data: holidays, error: holidaysError } = await supabase
@@ -75,8 +75,8 @@ export async function generateEntriesForTaskInDb(
     .eq('organization_id', context.organizationId);
   if (holidaysError) throw holidaysError;
 
-  const drafts = generateEntriesForTask(
-    context.task,
+  const drafts = generateEntriesForTaskItem(
+    context.taskList,
     context.year,
     (holidays ?? []) as { date: string; is_recurring: boolean }[]
   ).filter((entry) => !options.fromDate || entry.period_date >= options.fromDate);
@@ -84,7 +84,7 @@ export async function generateEntriesForTaskInDb(
   if (drafts.length === 0) return { inserted: 0 };
 
   const { error } = await supabase.from('task_entries').upsert(drafts, {
-    onConflict: 'task_id,period_date,period_label',
+    onConflict: 'task_list_id,period_date,period_label',
     ignoreDuplicates: true,
   });
   if (error) throw error;
@@ -92,17 +92,21 @@ export async function generateEntriesForTaskInDb(
   return { inserted: drafts.length };
 }
 
-export async function regenerateFutureEntriesForTask(
+export async function regenerateFutureEntriesForTaskList(
   supabase: SupabaseAdmin,
-  taskId: string,
+  taskListId: string,
   fromDate: string = todayInManila()
 ) {
   const { error: deleteError } = await supabase
     .from('task_entries')
     .delete()
-    .eq('task_id', taskId)
+    .eq('task_list_id', taskListId)
     .gte('period_date', fromDate);
   if (deleteError) throw deleteError;
 
-  return generateEntriesForTaskInDb(supabase, taskId, { fromDate });
+  return generateEntriesForTaskListInDb(supabase, taskListId, { fromDate });
 }
+
+// Back-compat aliases so older import sites compile until they're updated.
+export const generateEntriesForTaskInDb = generateEntriesForTaskListInDb;
+export const regenerateFutureEntriesForTask = regenerateFutureEntriesForTaskList;

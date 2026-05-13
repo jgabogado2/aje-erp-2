@@ -69,9 +69,9 @@ import { TrackerListView } from '@/components/tracker-views/tracker-list-view';
 import { TrackerKanbanView } from '@/components/tracker-views/kanban/tracker-kanban-view';
 import { TrackerCalendarView } from '@/components/tracker-views/calendar/tracker-calendar-view';
 import type {
+  Task,
   TrackerSection,
-  TaskList,
-  TaskWithAssignee,
+  TaskListWithAssignee,
 } from '@/types/domain';
 import type { Frequency } from '@/lib/tracker.types';
 
@@ -107,17 +107,17 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
   const [editingSection, setEditingSection] = useState<TrackerSection | null>(null);
   const [sectionDialogOpen, setSectionDialogOpen] = useState(false);
 
-  const [editingTaskList, setEditingTaskList] = useState<TaskList | null>(null);
+  const [editingTaskList, setEditingTaskList] = useState<TaskListWithAssignee | null>(null);
   const [taskListDialogOpen, setTaskListDialogOpen] = useState(false);
   const [taskListDefaultSection, setTaskListDefaultSection] = useState<string | null>(null);
 
-  const [editingTask, setEditingTask] = useState<TaskWithAssignee | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [taskDialogTaskListId, setTaskDialogTaskListId] = useState<string | null>(null);
 
   const [deleteSection, setDeleteSection] = useState<TrackerSection | null>(null);
-  const [deleteTaskList, setDeleteTaskList] = useState<TaskList | null>(null);
-  const [deleteTask, setDeleteTask] = useState<TaskWithAssignee | null>(null);
+  const [deleteTaskList, setDeleteTaskList] = useState<TaskListWithAssignee | null>(null);
+  const [deleteTask, setDeleteTask] = useState<Task | null>(null);
   const [activeView, setActiveView] = useState<TrackerView>('list');
 
   const deleteSectionMut = useDeleteSection(trackerId);
@@ -139,17 +139,17 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
     const h = hierarchyQuery.data;
     if (!h) return null;
 
-    const tasksByList = new Map<string, TaskWithAssignee[]>();
-    const taskById = new Map<string, TaskWithAssignee>();
+    const tasksByList = new Map<string, Task[]>();
+    const taskById = new Map<string, Task>();
     for (const t of h.tasks) {
       taskById.set(t.id, t);
       if (!tasksByList.has(t.task_list_id)) tasksByList.set(t.task_list_id, []);
       tasksByList.get(t.task_list_id)!.push(t);
     }
 
-    const taskListsBySection = new Map<string, TaskList[]>();
-    const taskListById = new Map<string, TaskList>();
-    const ungroupedTaskLists: TaskList[] = [];
+    const taskListsBySection = new Map<string, TaskListWithAssignee[]>();
+    const taskListById = new Map<string, TaskListWithAssignee>();
+    const ungroupedTaskLists: TaskListWithAssignee[] = [];
     for (const tl of h.task_lists) {
       taskListById.set(tl.id, tl);
       if (tl.tracker_section_id) {
@@ -223,7 +223,7 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
   const taskListContainerId = (sectionId: string | null) =>
     sectionId ?? UNGROUPED;
 
-  const flattenTaskListGroups = (groups: Map<string, TaskList[]>) => [
+  const flattenTaskListGroups = (groups: Map<string, TaskListWithAssignee[]>) => [
     ...tree.sections.flatMap((section) => groups.get(taskListContainerId(section.id)) ?? []),
     ...(groups.get(UNGROUPED) ?? []),
   ];
@@ -262,7 +262,7 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
 
         const sourceKey = taskListContainerId(activeList.tracker_section_id);
         const targetKey = taskListContainerId(targetSectionId);
-        const groups = new Map<string, TaskList[]>();
+        const groups = new Map<string, TaskListWithAssignee[]>();
         for (const section of tree.sections) {
           groups.set(taskListContainerId(section.id), [
             ...(tree.taskListsBySection.get(section.id) ?? []),
@@ -406,7 +406,7 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
           <PageEmptyState
             icon={<ListChecks className="h-8 w-8" />}
             title="No sections yet"
-            description="Add a section to start organizing task lists and tasks."
+            description="Add a section to start organizing task items and subtasks."
             action={
               canWrite ? (
                 <Button
@@ -467,8 +467,8 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
                     setTaskDialogTaskListId(taskListId);
                     setTaskDialogOpen(true);
                   }}
-                  onOpenTask={(t) =>
-                    router.push(`/sites/${siteId}/trackers/${trackerId}/tasks/${t.id}`)
+                  onOpenTaskList={(taskListId) =>
+                    router.push(`/sites/${siteId}/trackers/${trackerId}/tasks/${taskListId}`)
                   }
                   onDeleteTask={(t) => setDeleteTask(t)}
                   frequency={category.frequency}
@@ -476,7 +476,7 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
               ))}
             </SortableContext>
 
-            <PageSection title="Ungrouped task lists">
+            <PageSection title="Ungrouped task items">
               <TaskListDropArea sectionId={null}>
                 <SortableContext
                   items={tree.ungroupedTaskLists.map((tl) => `task-list:${tl.id}`)}
@@ -485,7 +485,7 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
                   <div className="space-y-3">
                     {tree.ungroupedTaskLists.length === 0 ? (
                       <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-                        No ungrouped task lists.
+                        No ungrouped task items.
                       </p>
                     ) : (
                       tree.ungroupedTaskLists.map((tl) => (
@@ -511,9 +511,9 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
                             setTaskDialogTaskListId(tl.id);
                             setTaskDialogOpen(true);
                           }}
-                          onOpenTask={(t) =>
+                          onOpenTaskList={() =>
                             router.push(
-                              `/sites/${siteId}/trackers/${trackerId}/tasks/${t.id}`
+                              `/sites/${siteId}/trackers/${trackerId}/tasks/${tl.id}`
                             )
                           }
                           onDeleteTask={(t) => setDeleteTask(t)}
@@ -539,18 +539,18 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
         open={taskListDialogOpen}
         onOpenChange={setTaskListDialogOpen}
         siteTrackerId={trackerId}
+        siteId={siteId}
         sections={tree.sections}
         defaultSectionId={taskListDefaultSection}
+        defaultFrequency={category.frequency}
         taskList={editingTaskList}
       />
       {taskDialogTaskListId && (
         <TaskFormDialog
           open={taskDialogOpen}
           onOpenChange={setTaskDialogOpen}
-          siteId={siteId}
           siteTrackerId={trackerId}
           taskListId={taskDialogTaskListId}
-          defaultFrequency={category.frequency}
           task={editingTask}
         />
       )}
@@ -564,7 +564,7 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete section?</AlertDialogTitle>
             <AlertDialogDescription>
-              &quot;{deleteSection?.name}&quot; will be removed. Task lists in this
+              &quot;{deleteSection?.name}&quot; will be removed. Task items in this
               section will become ungrouped (not deleted).
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -599,9 +599,9 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete task list?</AlertDialogTitle>
+            <AlertDialogTitle>Delete task item?</AlertDialogTitle>
             <AlertDialogDescription>
-              &quot;{deleteTaskList?.name}&quot; and <strong>all its tasks</strong>{' '}
+              &quot;{deleteTaskList?.name}&quot; and <strong>all its subtasks</strong>{' '}
               will be permanently removed. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -615,7 +615,7 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
                 if (!deleteTaskList) return;
                 try {
                   await deleteTaskListMut.mutateAsync(deleteTaskList.id);
-                  toast.success('Task list deleted');
+                  toast.success('Task item deleted');
                   setDeleteTaskList(null);
                 } catch (err) {
                   toast.error(
@@ -636,10 +636,10 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete task?</AlertDialogTitle>
+            <AlertDialogTitle>Delete subtask?</AlertDialogTitle>
             <AlertDialogDescription>
-              &quot;{deleteTask?.name}&quot; will be removed. Any task entries
-              generated for it in Phase 2c will also be deleted.
+              &quot;{deleteTask?.name}&quot; will be removed along with all its
+              generated period entries. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -652,7 +652,7 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
                 if (!deleteTask) return;
                 try {
                   await deleteTaskMut.mutateAsync(deleteTask.id);
-                  toast.success('Task deleted');
+                  toast.success('Subtask deleted');
                   setDeleteTask(null);
                 } catch (err) {
                   toast.error(
@@ -677,18 +677,18 @@ export default function SiteTrackerDetailPage({ params }: PageProps) {
 interface SectionCardProps {
   section: TrackerSection;
   canWrite: boolean;
-  taskLists: TaskList[];
-  tasksByList: Map<string, TaskWithAssignee[]>;
+  taskLists: TaskListWithAssignee[];
+  tasksByList: Map<string, Task[]>;
   frequency: Frequency;
   onEditSection: () => void;
   onDeleteSection: () => void;
   onAddTaskList: () => void;
-  onEditTaskList: (tl: TaskList) => void;
-  onDeleteTaskList: (tl: TaskList) => void;
+  onEditTaskList: (tl: TaskListWithAssignee) => void;
+  onDeleteTaskList: (tl: TaskListWithAssignee) => void;
   onAddTask: (taskListId: string) => void;
-  onEditTask: (t: TaskWithAssignee, taskListId: string) => void;
-  onOpenTask: (t: TaskWithAssignee) => void;
-  onDeleteTask: (t: TaskWithAssignee) => void;
+  onEditTask: (t: Task, taskListId: string) => void;
+  onOpenTaskList: (taskListId: string) => void;
+  onDeleteTask: (t: Task) => void;
 }
 
 function SectionCard({
@@ -704,7 +704,7 @@ function SectionCard({
   onDeleteTaskList,
   onAddTask,
   onEditTask,
-  onOpenTask,
+  onOpenTaskList,
   onDeleteTask,
 }: SectionCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -737,7 +737,7 @@ function SectionCard({
           <>
             <Button variant="ghost" size="sm" onClick={onAddTaskList}>
               <Plus className="mr-1 h-3.5 w-3.5" />
-              Task list
+              Task item
             </Button>
             <Button
               variant="ghost"
@@ -768,7 +768,7 @@ function SectionCard({
           <div className="space-y-3">
             {taskLists.length === 0 ? (
               <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-                No task lists in this section yet.
+                No task items in this section yet.
               </p>
             ) : (
               taskLists.map((tl) => (
@@ -782,7 +782,7 @@ function SectionCard({
               onDeleteTaskList={() => onDeleteTaskList(tl)}
               onAddTask={() => onAddTask(tl.id)}
               onEditTask={(t) => onEditTask(t, tl.id)}
-              onOpenTask={onOpenTask}
+              onOpenTaskList={() => onOpenTaskList(tl.id)}
               onDeleteTask={onDeleteTask}
             />
               ))
@@ -796,20 +796,20 @@ function SectionCard({
 }
 
 // ============================================================================
-// Task list card
+// Task item card
 // ============================================================================
 
 interface TaskListCardProps {
-  taskList: TaskList;
+  taskList: TaskListWithAssignee;
   canWrite: boolean;
-  tasks: TaskWithAssignee[];
+  tasks: Task[];
   frequency: Frequency;
   onEditTaskList: () => void;
   onDeleteTaskList: () => void;
   onAddTask: () => void;
-  onEditTask: (t: TaskWithAssignee) => void;
-  onOpenTask: (t: TaskWithAssignee) => void;
-  onDeleteTask: (t: TaskWithAssignee) => void;
+  onEditTask: (t: Task) => void;
+  onOpenTaskList: () => void;
+  onDeleteTask: (t: Task) => void;
 }
 
 function TaskListCard({
@@ -821,7 +821,7 @@ function TaskListCard({
   onDeleteTaskList,
   onAddTask,
   onEditTask,
-  onOpenTask,
+  onOpenTaskList,
   onDeleteTask,
 }: TaskListCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -842,24 +842,27 @@ function TaskListCard({
           type="button"
           disabled={!canWrite}
           className="cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 active:cursor-grabbing"
-          aria-label="Drag task list"
+          aria-label="Drag task item"
           {...attributes}
           {...listeners}
         >
           <GripVertical className="h-4 w-4" />
         </button>
         <h4 className="flex-1 text-sm font-semibold">{taskList.name}</h4>
+        <Button variant="ghost" size="sm" onClick={onOpenTaskList} aria-label="Open entries">
+          <ListChecks className="h-3.5 w-3.5" />
+        </Button>
         {canWrite && (
           <>
             <Button variant="ghost" size="sm" onClick={onAddTask}>
               <Plus className="mr-1 h-3.5 w-3.5" />
-              Task
+              Subtask
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={onEditTaskList}
-              aria-label="Edit task list"
+              aria-label="Edit task item"
             >
               <Pencil className="h-3.5 w-3.5" />
             </Button>
@@ -867,12 +870,31 @@ function TaskListCard({
               variant="ghost"
               size="sm"
               onClick={onDeleteTaskList}
-              aria-label="Delete task list"
+              aria-label="Delete task item"
               className="text-destructive hover:text-destructive"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </>
+        )}
+      </div>
+
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <CalendarClock className="h-3 w-3" />
+          {taskList.frequency !== frequency
+            ? `${taskList.frequency} (override)`
+            : taskList.frequency}
+        </span>
+        {taskList.skip_weekends && <span>skip weekends</span>}
+        {taskList.skip_holidays && <span>skip holidays</span>}
+        {taskList.assignee ? (
+          <span className="inline-flex items-center gap-1">
+            <UserCircle2 className="h-3 w-3" />
+            {taskList.assignee.name ?? taskList.assignee.email}
+          </span>
+        ) : (
+          <span className="italic">unassigned</span>
         )}
       </div>
 
@@ -884,7 +906,7 @@ function TaskListCard({
           <ul className="grid gap-1">
             {tasks.length === 0 ? (
               <li className="rounded-md bg-background/50 p-2 text-center text-xs text-muted-foreground">
-                No tasks yet.
+                No subtasks yet.
               </li>
             ) : (
               tasks.map((task) => (
@@ -892,9 +914,7 @@ function TaskListCard({
                   key={task.id}
                   task={task}
                   canWrite={canWrite}
-                  frequency={frequency}
                   onEdit={() => onEditTask(task)}
-                  onOpen={() => onOpenTask(task)}
                   onDelete={() => onDeleteTask(task)}
                 />
               ))
@@ -957,16 +977,12 @@ function TaskDropArea({
 function TaskRow({
   task,
   canWrite,
-  frequency,
   onEdit,
-  onOpen,
   onDelete,
 }: {
-  task: TaskWithAssignee;
+  task: Task;
   canWrite: boolean;
-  frequency: Frequency;
   onEdit: () => void;
-  onOpen: () => void;
   onDelete: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -990,7 +1006,7 @@ function TaskRow({
         type="button"
         disabled={!canWrite}
         className="cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 active:cursor-grabbing"
-        aria-label="Drag task"
+        aria-label="Drag subtask"
         {...attributes}
         {...listeners}
       >
@@ -1000,44 +1016,20 @@ function TaskRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-medium">{task.name}</span>
-          {!task.is_active && (
-            <Badge variant="secondary" className="text-[10px]">
-              Inactive
-            </Badge>
-          )}
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <CalendarClock className="h-3 w-3" />
-            {task.frequency !== frequency ? `${task.frequency} (override)` : task.frequency}
-          </span>
-          {task.skip_weekends && <span>skip weekends</span>}
-          {task.skip_holidays && <span>skip holidays</span>}
-          {task.assignee ? (
-            <span className="inline-flex items-center gap-1">
-              <UserCircle2 className="h-3 w-3" />
-              {task.assignee.name ?? task.assignee.email}
-            </span>
-          ) : (
-            <span className="italic">unassigned</span>
-          )}
-        </div>
+        <div className="mt-0.5 text-xs text-muted-foreground">Subtask</div>
       </div>
-
-      <Button variant="ghost" size="sm" onClick={onOpen} aria-label="Open entries">
-        <ListChecks className="h-3.5 w-3.5" />
-      </Button>
 
       {canWrite && (
         <>
-          <Button variant="ghost" size="sm" onClick={onEdit} aria-label="Edit task">
+          <Button variant="ghost" size="sm" onClick={onEdit} aria-label="Edit subtask">
             <Pencil className="h-3.5 w-3.5" />
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={onDelete}
-            aria-label="Delete task"
+            aria-label="Delete subtask"
             className="text-destructive hover:text-destructive"
           >
             <Trash2 className="h-3.5 w-3.5" />

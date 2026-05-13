@@ -15,6 +15,7 @@ import {
   siteIdForSiteTracker,
 } from '@/lib/api/hierarchy-auth';
 import { taskListCreateSchema } from '@/lib/validations/task-list';
+import { generateEntriesForTaskListInDb } from '@/lib/api/task-entry-generation';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -67,6 +68,25 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       if (!section) return apiNotFound('Section not found in this tracker');
     }
 
+    if (input.assigned_to) {
+      const { data: us } = await supabase
+        .from('user_sites')
+        .select('id')
+        .eq('user_id', input.assigned_to)
+        .eq('site_id', siteId)
+        .maybeSingle();
+      const { data: member } = await supabase
+        .from('organization_members')
+        .select('role')
+        .eq('user_id', input.assigned_to)
+        .eq('organization_id', caller.organizationId)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (!us && member?.role !== 'SUPER_ADMIN') {
+        return apiNotFound('Assignee is not a member of this site');
+      }
+    }
+
     let displayOrder = input.display_order ?? 0;
     if (input.display_order === undefined) {
       const { data: last } = await supabase
@@ -86,8 +106,14 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         tracker_section_id: input.tracker_section_id ?? null,
         name: input.name,
         display_order: displayOrder,
+        frequency: input.frequency,
+        assigned_to: input.assigned_to ?? null,
+        skip_weekends: input.skip_weekends ?? false,
+        skip_holidays: input.skip_holidays ?? false,
+        is_active: true,
+        created_by: caller.userId,
       })
-      .select()
+      .select('*, assignee:users!task_lists_assigned_to_fkey(id, name, email, image)')
       .single();
 
     if (error) {
@@ -96,6 +122,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       }
       throw error;
     }
+    await generateEntriesForTaskListInDb(supabase, data.id as string);
     return apiSuccess(data, 201);
   } catch (err) {
     return handleUnknownError(err);

@@ -67,39 +67,43 @@ export async function GET(req: NextRequest) {
       taskListIds = (data ?? []).map((row) => row.id as string);
     }
 
-    let tasks: Array<{
+    let taskLists: Array<{
       id: string;
       name: string;
       assigned_to: string | null;
       assignee?: { id: string; name: string | null; email: string; image: string | null } | null;
     }> = [];
     if (taskListIds.length > 0) {
-      let tasksQuery = supabase
-        .from('tasks')
-        .select('id, name, assigned_to, assignee:users!tasks_assigned_to_fkey(id, name, email, image)')
-        .in('task_list_id', taskListIds);
-      if (caller.systemRole === 'STAFF') tasksQuery = tasksQuery.eq('assigned_to', caller.userId);
-      const { data, error } = await tasksQuery;
+      let taskListsQuery = supabase
+        .from('task_lists')
+        .select('id, name, assigned_to, assignee:users!task_lists_assigned_to_fkey(id, name, email, image)')
+        .in('id', taskListIds);
+      if (caller.systemRole === 'STAFF') {
+        taskListsQuery = taskListsQuery.eq('assigned_to', caller.userId);
+      }
+      const { data, error } = await taskListsQuery;
       if (error) throw error;
-      tasks = ((data ?? []) as unknown as typeof tasks).map((task) => ({
-        ...task,
-        assignee: Array.isArray(task.assignee) ? task.assignee[0] ?? null : task.assignee,
+      taskLists = ((data ?? []) as unknown as typeof taskLists).map((taskList) => ({
+        ...taskList,
+        assignee: Array.isArray(taskList.assignee)
+          ? taskList.assignee[0] ?? null
+          : taskList.assignee,
       }));
     }
 
-    const taskIds = tasks.map((task) => task.id);
-    let entries: Array<TaskEntry & { task?: (typeof tasks)[number] }> = [];
-    if (taskIds.length > 0) {
+    const filteredTaskListIds = taskLists.map((taskList) => taskList.id);
+    let entries: Array<TaskEntry & { task_list?: (typeof taskLists)[number] }> = [];
+    if (filteredTaskListIds.length > 0) {
       const { data, error } = await supabase
         .from('task_entries')
         .select('*')
-        .in('task_id', taskIds)
+        .in('task_list_id', filteredTaskListIds)
         .order('due_date', { ascending: true });
       if (error) throw error;
-      const taskById = new Map(tasks.map((task) => [task.id, task]));
+      const taskListById = new Map(taskLists.map((taskList) => [taskList.id, taskList]));
       entries = ((data ?? []) as TaskEntry[]).map((entry) => ({
         ...entry,
-        task: taskById.get(entry.task_id),
+        task_list: taskListById.get(entry.task_list_id),
       }));
     }
 
@@ -119,12 +123,12 @@ export async function GET(req: NextRequest) {
       { user_id: string; name: string; entries: typeof entries }
     >();
     for (const entry of entries) {
-      const task = entry.task;
-      const userId = task?.assigned_to ?? 'unassigned';
+      const taskList = entry.task_list;
+      const userId = taskList?.assigned_to ?? 'unassigned';
       if (!byAssignee.has(userId)) {
         byAssignee.set(userId, {
           user_id: userId,
-          name: task?.assignee?.name ?? task?.assignee?.email ?? 'Unassigned',
+          name: taskList?.assignee?.name ?? taskList?.assignee?.email ?? 'Unassigned',
           entries: [],
         });
       }

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { TASK_STATUSES, type TaskStatus } from '@/lib/tracker.types';
-import type { TaskList, TaskWithAssignee } from '@/types/domain';
+import type { Task, TaskListWithAssignee } from '@/types/domain';
 
 export interface TrackerViewFilters {
   search?: string;
@@ -22,15 +22,15 @@ export function TrackerViewToolbar({
   onRefresh,
 }: {
   filters: TrackerViewFilters;
-  taskLists: TaskList[];
-  tasks: TaskWithAssignee[];
+  taskLists: TaskListWithAssignee[];
+  tasks: Task[];
   onChange: (filters: TrackerViewFilters) => void;
   onRefresh: () => void;
 }) {
   const assignees = new Map<string, string>();
-  for (const task of tasks) {
-    if (task.assignee && task.assigned_to) {
-      assignees.set(task.assigned_to, task.assignee.name ?? task.assignee.email);
+  for (const taskList of taskLists) {
+    if (taskList.assignee && taskList.assigned_to) {
+      assignees.set(taskList.assigned_to, taskList.assignee.name ?? taskList.assignee.email);
     }
   }
 
@@ -39,7 +39,7 @@ export function TrackerViewToolbar({
       <Input
         value={filters.search ?? ''}
         onChange={(event) => onChange({ ...filters, search: event.target.value || undefined })}
-        placeholder="Search tasks"
+        placeholder="Search task items"
         className="lg:max-w-64"
       />
       <Select
@@ -78,7 +78,7 @@ export function TrackerViewToolbar({
         }
         className="lg:max-w-56"
       >
-        <option value="">All task lists</option>
+        <option value="">All task items</option>
         {taskLists.map((taskList) => (
           <option key={taskList.id} value={taskList.id}>
             {taskList.name}

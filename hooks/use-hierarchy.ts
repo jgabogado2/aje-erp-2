@@ -3,8 +3,8 @@ import { apiClient } from '@/lib/api-client';
 import type {
   TrackerSection,
   TaskList,
+  TaskListWithAssignee,
   Task,
-  TaskWithAssignee,
   SiteTracker,
   TrackerCategory,
 } from '@/types/domain';
@@ -33,8 +33,8 @@ export interface HierarchyPayload {
     site: { id: string; code: string; name: string; organization_id: string };
   };
   sections: TrackerSection[];
-  task_lists: TaskList[];
-  tasks: TaskWithAssignee[];
+  task_lists: TaskListWithAssignee[];
+  tasks: Task[];
 }
 
 const hierarchyKey = (siteTrackerId: string) =>

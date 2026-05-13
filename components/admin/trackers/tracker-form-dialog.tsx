@@ -62,7 +62,7 @@ const FREQ_LABEL: Record<Frequency, string> = {
   CUSTOM: 'Custom',
 };
 
-const STEPS = ['Basics', 'Sections', 'Task lists', 'Review'] as const;
+const STEPS = ['Basics', 'Sections', 'Task items', 'Review'] as const;
 
 const formSchema = z
   .object({
@@ -80,8 +80,9 @@ const formSchema = z
     task_lists: z.array(
       z.object({
         id: z.string(),
-        name: z.string().trim().min(1, 'Task list name is required').max(120),
+        name: z.string().trim().min(1, 'Task item name is required').max(120),
         section_id: z.string().min(1),
+        frequency: z.enum(FREQUENCIES),
       })
     ),
   })
@@ -107,6 +108,23 @@ const formSchema = z
           path: ['task_lists', i, 'section_id'],
           message: 'Pick a section',
         });
+      }
+    }
+
+    // Task list names must be unique within each section. Mirrors the DB
+    // constraint enforced on instantiation; surfacing it here means the
+    // wizard refuses to save bad data instead of waiting for assign-time.
+    const seenInSection = new Map<string, number>();
+    for (const [i, taskList] of val.task_lists.entries()) {
+      const key = `${taskList.section_id}::${taskList.name.trim().toLowerCase()}`;
+      if (seenInSection.has(key)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['task_lists', i, 'name'],
+          message: 'Task item names must be unique within their section',
+        });
+      } else {
+        seenInSection.set(key, i);
       }
     }
   });
@@ -146,6 +164,7 @@ function defaultValuesFor(category?: TrackerCategory | null): TrackerFormValues 
       name: taskList.name,
       section_id:
         (taskList.section && idByName.get(taskList.section)) || fallbackSectionId,
+      frequency: taskList.frequency ?? category.frequency,
     })),
   };
 }
@@ -164,12 +183,11 @@ export function TrackerFormDialog({ open, onOpenChange, category }: TrackerFormD
   const {
     register,
     control,
-    handleSubmit,
     reset,
     setValue,
     getValues,
     trigger,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = form;
 
   const sectionsArray = useFieldArray({
@@ -238,6 +256,7 @@ export function TrackerFormDialog({ open, onOpenChange, category }: TrackerFormD
       id: crypto.randomUUID(),
       name: '',
       section_id: sectionId,
+      frequency: getValues('frequency'),
     });
   }
 
@@ -308,7 +327,22 @@ export function TrackerFormDialog({ open, onOpenChange, category }: TrackerFormD
     if (ok) setStep((current) => Math.min(current + 1, STEPS.length - 1));
   }
 
-  const onSubmit = async (values: TrackerFormValues) => {
+  // The Save button is wired to this directly (not via form submit). Form
+  // submission is intentionally disabled on the <form> element, so the only
+  // way to save is an explicit click on the Confirm button on the Review
+  // step. This makes accidental saves structurally impossible.
+  const handleConfirmAndSave = async () => {
+    // Final validation across all fields before saving.
+    const ok = await trigger();
+    if (!ok) {
+      toast.error('Please fix the highlighted errors first');
+      return;
+    }
+    const values = getValues();
+    await persistCategory(values);
+  };
+
+  const persistCategory = async (values: TrackerFormValues) => {
     const sectionNameById = new Map(
       values.sections.map((section) => [section.id, section.name.trim()])
     );
@@ -328,6 +362,7 @@ export function TrackerFormDialog({ open, onOpenChange, category }: TrackerFormD
         name: taskList.name.trim(),
         order: i,
         section: sectionNameById.get(taskList.section_id) ?? '',
+        frequency: taskList.frequency,
       })),
     };
 
@@ -346,6 +381,7 @@ export function TrackerFormDialog({ open, onOpenChange, category }: TrackerFormD
   };
 
   const frequency = getValues('frequency');
+  const isPersisting = createMutation.isPending || updateMutation.isPending;
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) setStep(0);
@@ -355,7 +391,24 @@ export function TrackerFormDialog({ open, onOpenChange, category }: TrackerFormD
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-3xl">
-        <form onSubmit={handleSubmit(onSubmit)}>
+        {/*
+          NOTE: this is a <div>, not a <form>. Saving goes through an
+          explicit Button onClick on the Review step. We deliberately avoid
+          form submission so Enter / focus / double-click can't ever trigger
+          a save behind the user's back. Any pre-submit validation is done
+          with RHF's `trigger()` inside the click handler.
+        */}
+        <div
+          onKeyDown={(e) => {
+            // Belt-and-braces: Enter inside any input becomes a no-op for
+            // non-textarea fields. Stops a stray Enter from clicking a
+            // focused button.
+            if (e.key !== 'Enter') return;
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'TEXTAREA') return;
+            e.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>
               {isEdit ? 'Edit tracker category' : 'Create tracker category'}
@@ -485,6 +538,15 @@ export function TrackerFormDialog({ open, onOpenChange, category }: TrackerFormD
 
               {step === 3 && (
                 <div className="grid gap-4">
+                  <div className="rounded-md border border-primary/30 bg-primary/5 p-4">
+                    <h3 className="text-base font-semibold">Review &amp; confirm</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      This is your last chance to make changes. Use{' '}
+                      <span className="font-medium">Back</span> to edit anything, or{' '}
+                      <span className="font-medium">Confirm &amp; {isEdit ? 'save' : 'create'}</span>{' '}
+                      to commit. Nothing is saved until you click the button below.
+                    </p>
+                  </div>
                   <div className="rounded-md border p-4">
                     <div className="flex items-center gap-2 font-semibold">
                       <Layers className="h-4 w-4" />
@@ -492,7 +554,7 @@ export function TrackerFormDialog({ open, onOpenChange, category }: TrackerFormD
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {FREQ_LABEL[frequency]} · {sectionValues.length} sections ·{' '}
-                      {taskListValues.length} task lists
+                      {taskListValues.length} task items
                     </p>
                   </div>
                   {sectionValues.map((section) => (
@@ -500,7 +562,7 @@ export function TrackerFormDialog({ open, onOpenChange, category }: TrackerFormD
                       <h3 className="text-sm font-semibold">{section.name || 'Untitled section'}</h3>
                       <div className="mt-2 grid gap-1">
                         {(taskListsBySection.get(section.id) ?? []).length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No task lists</p>
+                          <p className="text-sm text-muted-foreground">No task items</p>
                         ) : (
                           (taskListsBySection.get(section.id) ?? []).map(({ value }) => (
                             <div
@@ -508,7 +570,10 @@ export function TrackerFormDialog({ open, onOpenChange, category }: TrackerFormD
                               className="flex items-center gap-2 rounded bg-muted/40 px-2 py-1.5 text-sm"
                             >
                               <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
-                              {value.name || 'Untitled task list'}
+                              <span className="flex-1">{value.name || 'Untitled task item'}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {FREQ_LABEL[value.frequency]}
+                              </span>
                             </div>
                           ))
                         )}
@@ -525,21 +590,29 @@ export function TrackerFormDialog({ open, onOpenChange, category }: TrackerFormD
               type="button"
               variant="outline"
               onClick={() => (step === 0 ? onOpenChange(false) : setStep(step - 1))}
-              disabled={isSubmitting}
+              disabled={isPersisting}
             >
               {step === 0 ? 'Cancel' : 'Back'}
             </Button>
             {step < STEPS.length - 1 ? (
-              <Button type="button" onClick={nextStep} disabled={isSubmitting}>
+              <Button type="button" onClick={nextStep} disabled={isPersisting}>
                 Next
               </Button>
             ) : (
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Saving...' : isEdit ? 'Save changes' : 'Create category'}
+              <Button
+                type="button"
+                onClick={handleConfirmAndSave}
+                disabled={isPersisting}
+              >
+                {isPersisting
+                  ? 'Saving...'
+                  : isEdit
+                    ? 'Confirm & save changes'
+                    : 'Confirm & create category'}
               </Button>
             )}
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -625,7 +698,7 @@ function TaskListDropSection({
         <h3 className="text-sm font-semibold">{section.name || 'Untitled section'}</h3>
         <Button type="button" variant="ghost" size="sm" onClick={onAdd}>
           <Plus className="mr-1 h-3.5 w-3.5" />
-          Task list
+          Task item
         </Button>
       </div>
       <SortableContext
@@ -638,7 +711,7 @@ function TaskListDropSection({
           }`}
         >
           {items.length === 0 ? (
-            <p className="p-2 text-center text-xs text-muted-foreground">No task lists</p>
+            <p className="p-2 text-center text-xs text-muted-foreground">No task items in this section</p>
           ) : (
             items.map(({ value, flatIndex }) => (
               <SortableWizardTaskListRow
@@ -646,6 +719,7 @@ function TaskListDropSection({
                 id={value.id}
                 sectionId={section.id}
                 registerName={register(`task_lists.${flatIndex}.name` as const)}
+                registerFrequency={register(`task_lists.${flatIndex}.frequency` as const)}
                 error={errors?.[flatIndex]?.name?.message}
                 onRemove={() => onRemove(flatIndex)}
               />
@@ -661,12 +735,18 @@ function SortableWizardTaskListRow({
   id,
   sectionId,
   registerName,
+  registerFrequency,
   error,
   onRemove,
 }: {
   id: string;
   sectionId: string;
   registerName: ReturnType<typeof useForm<TrackerFormValues>>['register'] extends (
+    name: infer _Name
+  ) => infer R
+    ? R
+    : never;
+  registerFrequency: ReturnType<typeof useForm<TrackerFormValues>>['register'] extends (
     name: infer _Name
   ) => infer R
     ? R
@@ -691,19 +771,26 @@ function SortableWizardTaskListRow({
         <button
           type="button"
           className="cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
-          aria-label="Drag task list"
+          aria-label="Drag task item"
           {...attributes}
           {...listeners}
         >
           <GripVertical className="h-4 w-4" />
         </button>
-        <Input placeholder="Task list name" className="flex-1" {...registerName} />
+        <Input placeholder="Task item name" className="flex-1" {...registerName} />
+        <Select className="w-36" aria-label="Task item frequency" {...registerFrequency}>
+          {FREQUENCIES.map((f) => (
+            <option key={f} value={f}>
+              {FREQ_LABEL[f]}
+            </option>
+          ))}
+        </Select>
         <Button
           type="button"
           variant="ghost"
           size="sm"
           onClick={onRemove}
-          aria-label="Remove task list"
+          aria-label="Remove task item"
         >
           <X className="h-4 w-4" />
         </Button>

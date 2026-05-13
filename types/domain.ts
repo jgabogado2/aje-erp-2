@@ -127,39 +127,50 @@ export interface TrackerSection {
   updated_at: string;
 }
 
+// `task_lists` is the "task item" — the entry-generating row that carries
+// frequency, assignee, and skip rules. (Migration 007 moved these fields
+// off the old `tasks` table and onto `task_lists`.)
 export interface TaskList {
   id: string;
   site_tracker_id: string;
   tracker_section_id: string | null;
   name: string;
   display_order: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Task {
-  id: string;
-  task_list_id: string;
-  name: string;
-  assigned_to: string | null;
   frequency: Frequency;
+  assigned_to: string | null;
   skip_weekends: boolean;
   skip_holidays: boolean;
   is_active: boolean;
-  display_order: number;
   created_by: string | null;
   created_at: string;
   updated_at: string;
 }
 
-// Returned by the hierarchy GET — embeds the assigned-to user for display.
-export interface TaskWithAssignee extends Task {
+// Hierarchy GET embeds the assignee so the UI doesn't need a second lookup.
+export interface TaskListWithAssignee extends TaskList {
   assignee?: Pick<UserProfile, 'id' | 'name' | 'email' | 'image'> | null;
 }
 
+// `tasks` is the "subtask" — optional lightweight row under a task_list.
+// Subtasks inherit the parent's frequency/assignee/skip rules; they don't
+// generate their own entries. Completion is tracked per parent entry via
+// task_entries.subtask_completions.
+export interface Task {
+  id: string;
+  task_list_id: string;
+  name: string;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Back-compat alias for older imports that referenced the old shape. The
+// hierarchy/entries APIs return assignee on the parent task_list now.
+export type TaskWithAssignee = Task;
+
 export interface TaskEntry {
   id: string;
-  task_id: string;
+  task_list_id: string;
   period_date: string;
   period_label: string;
   due_date: string;
@@ -170,21 +181,22 @@ export interface TaskEntry {
   marked_by: string | null;
   marked_at: string | null;
   note: string | null;
+  /** IDs of subtasks (Task.id) that are completed for this period. */
+  subtask_completions: string[];
   created_at: string;
   updated_at: string;
   marker?: Pick<UserProfile, 'id' | 'name' | 'email' | 'image'> | null;
 }
 
 export interface TaskEntriesPayload {
-  task: TaskWithAssignee & {
-    task_list: Pick<TaskList, 'id' | 'name' | 'site_tracker_id'> & {
-      site_tracker: SiteTracker & {
-        tracker_category: Pick<
-          TrackerCategory,
-          'id' | 'name' | 'description' | 'frequency'
-        >;
-        site: Pick<Site, 'id' | 'code' | 'name' | 'organization_id'>;
-      };
+  task_list: TaskListWithAssignee & {
+    subtasks: Task[];
+    site_tracker: SiteTracker & {
+      tracker_category: Pick<
+        TrackerCategory,
+        'id' | 'name' | 'description' | 'frequency'
+      >;
+      site: Pick<Site, 'id' | 'code' | 'name' | 'organization_id'>;
     };
   };
   entries: TaskEntry[];
@@ -206,8 +218,10 @@ export interface TrackerEntriesPayload {
     site: Pick<Site, 'id' | 'code' | 'name' | 'organization_id'>;
   };
   sections: TrackerSection[];
-  task_lists: TaskList[];
-  tasks: TaskWithAssignee[];
+  /** task_lists = "task items" — they own frequency/assignee/skip and entries. */
+  task_lists: TaskListWithAssignee[];
+  /** tasks = "subtasks" — optional checklist items under each task_list. */
+  tasks: Task[];
   entries: TaskEntry[];
   summary: TrackerEntriesSummary;
 }
@@ -229,14 +243,14 @@ export interface DashboardSummary {
   }>;
   overdue_entries: Array<
     TaskEntry & {
-      task?: Pick<Task, 'id' | 'name' | 'assigned_to'> & {
+      task_list?: Pick<TaskList, 'id' | 'name' | 'assigned_to'> & {
         assignee?: Pick<UserProfile, 'id' | 'name' | 'email' | 'image'> | null;
       };
     }
   >;
   upcoming_entries: Array<
     TaskEntry & {
-      task?: Pick<Task, 'id' | 'name' | 'assigned_to'> & {
+      task_list?: Pick<TaskList, 'id' | 'name' | 'assigned_to'> & {
         assignee?: Pick<UserProfile, 'id' | 'name' | 'email' | 'image'> | null;
       };
     }

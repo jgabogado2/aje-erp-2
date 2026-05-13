@@ -9,6 +9,7 @@ export const taskEntryUpdateSchema = z.object({
   value: z.string().trim().max(500).nullable().optional(),
   note: z.string().trim().max(2000).nullable().optional(),
   bir_status: z.enum(BIR_STATUSES).nullable().optional(),
+  subtask_completions: z.array(z.string().uuid()).optional(),
 });
 
 export type TaskEntryUpdateInput = z.infer<typeof taskEntryUpdateSchema>;

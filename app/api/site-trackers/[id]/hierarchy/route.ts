@@ -44,12 +44,12 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
         .order('display_order', { ascending: true }),
       supabase
         .from('task_lists')
-        .select('*')
+        .select('*, assignee:users!task_lists_assigned_to_fkey(id, name, email, image)')
         .eq('site_tracker_id', siteTrackerId)
         .order('display_order', { ascending: true }),
       supabase
         .from('tasks')
-        .select('*, assignee:users!tasks_assigned_to_fkey(id, name, email, image)')
+        .select('*')
         .in(
           'task_list_id',
           (

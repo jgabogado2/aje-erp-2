@@ -48,6 +48,7 @@ export function TrackerListView({ siteTrackerId }: { siteTrackerId: string }) {
       bir_status?: BirStatus | null;
       submission_date?: string | null;
       note?: string | null;
+      subtask_completions?: string[];
     }
   ) {
     try {
@@ -105,14 +106,18 @@ export function TrackerListView({ siteTrackerId }: { siteTrackerId: string }) {
           {view.rows.map((row) => (
             <div key={row.id} className="contents">
               <div className="sticky left-0 z-10 border-b border-r bg-background p-3">
-                <div className="truncate text-sm font-medium">{row.task.name}</div>
+                <div className="truncate text-sm font-medium">{row.taskList.name}</div>
                 <div className="mt-1 truncate text-xs text-muted-foreground">
-                  {row.section ? `${row.section.name} / ` : ''}
-                  {row.taskList.name}
+                  {row.section?.name ?? 'No section'}
                 </div>
                 <div className="mt-1 truncate text-xs text-muted-foreground">
-                  {row.task.assignee?.name ?? row.task.assignee?.email ?? 'Unassigned'}
+                  {row.taskList.assignee?.name ?? row.taskList.assignee?.email ?? 'Unassigned'}
                 </div>
+                {row.subtasks.length > 0 && (
+                  <div className="mt-2 text-[11px] text-muted-foreground">
+                    {row.subtasks.length} subtasks
+                  </div>
+                )}
               </div>
               {view.columns.map((column) => {
                 const entry = row.entriesByColumn.get(column.key);
@@ -120,16 +125,10 @@ export function TrackerListView({ siteTrackerId }: { siteTrackerId: string }) {
                   <div key={`${row.id}:${column.key}`} className="border-b border-r p-2">
                     {entry ? (
                       <div className="grid gap-1">
-                        {isBir ? (
+                        {isBir && (
                           <BirStatusSelect
                             value={entry.bir_status}
                             onChange={(bir_status) => patchEntry(entry.id, { bir_status })}
-                            disabled={updateEntry.isPending}
-                          />
-                        ) : (
-                          <TrackerStatusSelect
-                            value={entry.status}
-                            onChange={(status) => patchEntry(entry.id, { status })}
                             disabled={updateEntry.isPending}
                           />
                         )}
@@ -156,6 +155,32 @@ export function TrackerListView({ siteTrackerId }: { siteTrackerId: string }) {
                           }
                           className="h-8 text-xs"
                         />
+                        {row.subtasks.length > 0 && (
+                          <div className="grid gap-1 rounded border p-2">
+                            {row.subtasks.map((subtask) => {
+                              const completed = entry.subtask_completions.includes(subtask.id);
+                              return (
+                                <label
+                                  key={subtask.id}
+                                  className="flex items-center gap-2 text-xs text-muted-foreground"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={completed}
+                                    onChange={(event) => {
+                                      const next = event.currentTarget.checked
+                                        ? [...entry.subtask_completions, subtask.id]
+                                        : entry.subtask_completions.filter((id) => id !== subtask.id);
+                                      patchEntry(entry.id, { subtask_completions: next });
+                                    }}
+                                    disabled={updateEntry.isPending}
+                                  />
+                                  <span className="truncate">{subtask.name}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="flex h-full min-h-20 items-center justify-center text-xs text-muted-foreground">

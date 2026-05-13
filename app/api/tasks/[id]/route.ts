@@ -14,7 +14,6 @@ import {
   siteIdForTask,
 } from '@/lib/api/hierarchy-auth';
 import { taskUpdateSchema } from '@/lib/validations/task';
-import { regenerateFutureEntriesForTask } from '@/lib/api/task-entry-generation';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -31,7 +30,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
 
     const { data, error } = await supabase
       .from('tasks')
-      .select('*, assignee:users!tasks_assigned_to_fkey(id, name, email, image)')
+      .select('*')
       .eq('id', id)
       .maybeSingle();
     if (error) throw error;
@@ -55,10 +54,6 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 
     const body = await req.json();
     const input = taskUpdateSchema.parse(body);
-    const shouldRegenerate =
-      input.frequency !== undefined ||
-      input.skip_weekends !== undefined ||
-      input.skip_holidays !== undefined;
 
     if (input.task_list_id) {
       const [{ data: currentTask }, { data: targetList }] = await Promise.all([
@@ -85,36 +80,13 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       }
     }
 
-    // Same assignee-validity check as create.
-    if (input.assigned_to) {
-      const { data: us } = await supabase
-        .from('user_sites')
-        .select('id')
-        .eq('user_id', input.assigned_to)
-        .eq('site_id', siteId)
-        .maybeSingle();
-      const { data: member } = await supabase
-        .from('organization_members')
-        .select('role')
-        .eq('user_id', input.assigned_to)
-        .eq('organization_id', caller.organizationId)
-        .eq('is_active', true)
-        .maybeSingle();
-      if (!us && member?.role !== 'SUPER_ADMIN') {
-        return apiNotFound('Assignee is not a member of this site');
-      }
-    }
-
     const { data, error } = await supabase
       .from('tasks')
       .update(input)
       .eq('id', id)
-      .select('*, assignee:users!tasks_assigned_to_fkey(id, name, email, image)')
+      .select('*')
       .single();
     if (error) throw error;
-    if (shouldRegenerate) {
-      await regenerateFutureEntriesForTask(supabase, id);
-    }
     return apiSuccess(data);
   } catch (err) {
     return handleUnknownError(err);

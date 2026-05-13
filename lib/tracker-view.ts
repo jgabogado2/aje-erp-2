@@ -1,8 +1,9 @@
 import { format, parseISO } from 'date-fns';
 import type {
+  Task,
   TaskEntry,
   TaskList,
-  TaskWithAssignee,
+  TaskListWithAssignee,
   TrackerSection,
 } from '@/types/domain';
 import type { BirStatus, Frequency, TaskStatus } from '@/lib/tracker.types';
@@ -17,8 +18,8 @@ export interface PeriodColumn {
 export interface TrackerRow {
   id: string;
   section: TrackerSection | null;
-  taskList: TaskList;
-  task: TaskWithAssignee;
+  taskList: TaskListWithAssignee;
+  subtasks: Task[];
   entries: TaskEntry[];
   entriesByColumn: Map<string, TaskEntry>;
 }
@@ -84,18 +85,18 @@ export function buildPeriodColumns(
 
 export function groupTrackerRows(
   sections: TrackerSection[],
-  taskLists: TaskList[],
-  tasks: TaskWithAssignee[],
+  taskLists: TaskListWithAssignee[],
+  tasks: Task[],
   entries: TaskEntry[]
 ): TrackerRow[] {
   const sectionById = new Map(sections.map((section) => [section.id, section]));
-  const entriesByTask = new Map<string, TaskEntry[]>();
+  const entriesByTaskList = new Map<string, TaskEntry[]>();
   for (const entry of entries) {
-    if (!entriesByTask.has(entry.task_id)) entriesByTask.set(entry.task_id, []);
-    entriesByTask.get(entry.task_id)!.push(entry);
+    if (!entriesByTaskList.has(entry.task_list_id)) entriesByTaskList.set(entry.task_list_id, []);
+    entriesByTaskList.get(entry.task_list_id)!.push(entry);
   }
 
-  const tasksByList = new Map<string, TaskWithAssignee[]>();
+  const tasksByList = new Map<string, Task[]>();
   for (const task of tasks) {
     if (!tasksByList.has(task.task_list_id)) tasksByList.set(task.task_list_id, []);
     tasksByList.get(task.task_list_id)!.push(task);
@@ -106,19 +107,17 @@ export function groupTrackerRows(
     const section = taskList.tracker_section_id
       ? sectionById.get(taskList.tracker_section_id) ?? null
       : null;
-    for (const task of tasksByList.get(taskList.id) ?? []) {
-      const taskEntries = [...(entriesByTask.get(task.id) ?? [])].sort((a, b) =>
-        a.period_date.localeCompare(b.period_date)
-      );
-      rows.push({
-        id: task.id,
-        section,
-        taskList,
-        task,
-        entries: taskEntries,
-        entriesByColumn: new Map(taskEntries.map((entry) => [periodKey(entry), entry])),
-      });
-    }
+    const taskEntries = [...(entriesByTaskList.get(taskList.id) ?? [])].sort((a, b) =>
+      a.period_date.localeCompare(b.period_date)
+    );
+    rows.push({
+      id: taskList.id,
+      section,
+      taskList,
+      subtasks: tasksByList.get(taskList.id) ?? [],
+      entries: taskEntries,
+      entriesByColumn: new Map(taskEntries.map((entry) => [periodKey(entry), entry])),
+    });
   }
   return rows;
 }

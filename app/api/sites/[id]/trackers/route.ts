@@ -109,7 +109,28 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       }
     );
 
-    if (rpcError) throw rpcError;
+    if (rpcError) {
+      // Most likely: the category has duplicate task-list names within the
+      // same section. The DB unique constraint will catch it during seed
+      // and the RPC rolls back the whole transaction. Translate to a 409
+      // with a useful pointer for the user.
+      const code = (rpcError as { code?: string }).code;
+      const details = (rpcError as { details?: string }).details ?? '';
+      if (code === '23505') {
+        if (details.includes('task_lists')) {
+          return apiConflict(
+            'This category has duplicate task list names within the same section. Edit the category and rename one of them before assigning.'
+          );
+        }
+        if (details.includes('tracker_sections')) {
+          return apiConflict(
+            'This category has duplicate section names. Edit the category and rename one of them before assigning.'
+          );
+        }
+        return apiConflict('A constraint prevented assigning this tracker. Check the category for duplicate names.');
+      }
+      throw rpcError;
+    }
 
     const { data, error } = await supabase
       .from('site_trackers')

@@ -67,13 +67,13 @@ export async function siteIdForTaskEntry(
 ): Promise<string | null> {
   const { data } = await supabase
     .from('task_entries')
-    .select('task:tasks!inner(task_list:task_lists!inner(site_tracker:site_trackers!inner(site_id)))')
+    .select('task_list:task_lists!inner(site_tracker:site_trackers!inner(site_id))')
     .eq('id', taskEntryId)
     .maybeSingle();
-  const task = data?.task as unknown as {
-    task_list?: { site_tracker?: { site_id?: string } };
+  const taskList = data?.task_list as unknown as {
+    site_tracker?: { site_id?: string };
   } | undefined;
-  return task?.task_list?.site_tracker?.site_id ?? null;
+  return taskList?.site_tracker?.site_id ?? null;
 }
 
 // "Can this caller WRITE in this site_tracker?" — SUPER_ADMIN always;

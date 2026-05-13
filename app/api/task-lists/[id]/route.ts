@@ -15,6 +15,7 @@ import {
   siteIdForTaskList,
 } from '@/lib/api/hierarchy-auth';
 import { taskListUpdateSchema } from '@/lib/validations/task-list';
+import { regenerateFutureEntriesForTaskList } from '@/lib/api/task-entry-generation';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -31,7 +32,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
 
     const { data, error } = await supabase
       .from('task_lists')
-      .select('*')
+      .select('*, assignee:users!task_lists_assigned_to_fkey(id, name, email, image)')
       .eq('id', id)
       .maybeSingle();
     if (error) throw error;
@@ -55,6 +56,11 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 
     const body = await req.json();
     const input = taskListUpdateSchema.parse(body);
+    const shouldRegenerate =
+      input.frequency !== undefined ||
+      input.skip_weekends !== undefined ||
+      input.skip_holidays !== undefined ||
+      input.is_active !== undefined;
 
     // If moving to a section, verify that section belongs to the same tracker.
     if (input.tracker_section_id) {
@@ -72,11 +78,30 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       if (!section) return apiNotFound('Section not found in this tracker');
     }
 
+    if (input.assigned_to) {
+      const { data: us } = await supabase
+        .from('user_sites')
+        .select('id')
+        .eq('user_id', input.assigned_to)
+        .eq('site_id', siteId)
+        .maybeSingle();
+      const { data: member } = await supabase
+        .from('organization_members')
+        .select('role')
+        .eq('user_id', input.assigned_to)
+        .eq('organization_id', caller.organizationId)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (!us && member?.role !== 'SUPER_ADMIN') {
+        return apiNotFound('Assignee is not a member of this site');
+      }
+    }
+
     const { data, error } = await supabase
       .from('task_lists')
       .update(input)
       .eq('id', id)
-      .select()
+      .select('*, assignee:users!task_lists_assigned_to_fkey(id, name, email, image)')
       .single();
 
     if (error) {
@@ -84,6 +109,9 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
         return apiConflict(`A task list named "${input.name}" already exists`);
       }
       throw error;
+    }
+    if (shouldRegenerate) {
+      await regenerateFutureEntriesForTaskList(supabase, id);
     }
     return apiSuccess(data);
   } catch (err) {

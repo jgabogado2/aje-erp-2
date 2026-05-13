@@ -30,16 +30,35 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 
     const { data: entry, error: entryError } = await supabase
       .from('task_entries')
-      .select('id, due_date')
+      .select('id, due_date, task_list_id')
       .eq('id', id)
       .maybeSingle();
     if (entryError) throw entryError;
     if (!entry) return apiNotFound('Task entry not found');
 
+    if (input.subtask_completions !== undefined) {
+      const { data: subtasks, error: subtasksError } = await supabase
+        .from('tasks')
+        .select('id')
+        .eq('task_list_id', entry.task_list_id);
+      if (subtasksError) throw subtasksError;
+      const allowed = new Set((subtasks ?? []).map((subtask) => subtask.id as string));
+      if (input.subtask_completions.some((subtaskId) => !allowed.has(subtaskId))) {
+        return apiNotFound('Subtask not found in this task item');
+      }
+    }
+
     const now = new Date();
-    const patch = {
+    const normalizedInput = {
       ...input,
-      status: input.status === 'DONE' ? checkCutoff(entry, now) : input.status,
+      subtask_completions: input.subtask_completions
+        ? [...new Set(input.subtask_completions)]
+        : input.subtask_completions,
+    };
+
+    const patch = {
+      ...normalizedInput,
+      status: normalizedInput.status === 'DONE' ? checkCutoff(entry, now) : normalizedInput.status,
       marked_by: caller.userId,
       marked_at: now.toISOString(),
     };

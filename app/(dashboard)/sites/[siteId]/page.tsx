@@ -144,45 +144,65 @@ export default function SiteDetailPage({ params }: PageProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {trackers.map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell>
-                      <Link
-                        href={`/sites/${siteId}/trackers/${t.id}`}
-                        className="font-medium hover:underline focus-visible:underline focus-visible:outline-none"
-                      >
-                        {t.tracker_category.name}
-                      </Link>
-                      {t.tracker_category.description && (
-                        <div className="truncate text-sm text-muted-foreground max-w-md">
-                          {t.tracker_category.description}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{t.tracker_category.frequency}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={t.is_active ? 'default' : 'secondary'}>
-                        {t.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {isSuperAdmin && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setUnassignTarget(t)}
-                          aria-label="Unassign tracker"
-                          title="Unassign"
-                          className="text-destructive hover:text-destructive"
+                {trackers.map((t) => {
+                  const href = `/sites/${siteId}/trackers/${t.id}`;
+                  return (
+                    <TableRow
+                      key={t.id}
+                      onClick={() => router.push(href)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          router.push(href);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="link"
+                      aria-label={`Open ${t.tracker_category.name}`}
+                      className="cursor-pointer transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
+                    >
+                      <TableCell>
+                        <Link
+                          href={href}
+                          className="font-medium hover:underline focus-visible:underline focus-visible:outline-none"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                          {t.tracker_category.name}
+                        </Link>
+                        {t.tracker_category.description && (
+                          <div className="truncate text-sm text-muted-foreground max-w-md">
+                            {t.tracker_category.description}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{t.tracker_category.frequency}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={t.is_active ? 'default' : 'secondary'}>
+                          {t.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {isSuperAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setUnassignTarget(t);
+                            }}
+                            aria-label="Unassign tracker"
+                            title="Unassign"
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}

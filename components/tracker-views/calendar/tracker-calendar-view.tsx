@@ -1,31 +1,41 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { addDays, format, startOfMonth, startOfWeek } from 'date-fns';
+import {
+  addDays,
+  addMonths,
+  format,
+  isSameMonth,
+  isToday,
+  startOfMonth,
+  startOfWeek,
+  subMonths,
+} from 'date-fns';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { TrackerStatusSelect } from '@/components/tracker-views/tracker-status-select';
 import { statusTone } from '@/lib/tracker-view';
 import { useTrackerEntries, useUpdateTrackerEntry } from '@/hooks/use-tracker-entries';
-import type { TaskEntry, TaskWithAssignee } from '@/types/domain';
+import type { TaskEntry, TaskListWithAssignee } from '@/types/domain';
 
 export function TrackerCalendarView({ siteTrackerId }: { siteTrackerId: string }) {
   const query = useTrackerEntries(siteTrackerId);
   const updateEntry = useUpdateTrackerEntry(siteTrackerId);
   const [selected, setSelected] = useState<TaskEntry | null>(null);
+  const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
 
-  const tasksById = useMemo(() => {
-    const map = new Map<string, TaskWithAssignee>();
-    for (const task of query.data?.tasks ?? []) map.set(task.id, task);
+  const taskListsById = useMemo(() => {
+    const map = new Map<string, TaskListWithAssignee>();
+    for (const taskList of query.data?.task_lists ?? []) map.set(taskList.id, taskList);
     return map;
-  }, [query.data?.tasks]);
+  }, [query.data?.task_lists]);
 
   const days = useMemo(() => {
-    const firstDue = query.data?.entries[0]?.due_date;
-    const anchor = firstDue ? new Date(`${firstDue}T00:00:00`) : new Date();
-    const start = startOfWeek(startOfMonth(anchor), { weekStartsOn: 1 });
+    const start = startOfWeek(visibleMonth, { weekStartsOn: 1 });
     return Array.from({ length: 42 }, (_, idx) => addDays(start, idx));
-  }, [query.data?.entries]);
+  }, [visibleMonth]);
 
   const entriesByDueDate = useMemo(() => {
     const map = new Map<string, TaskEntry[]>();
@@ -45,46 +55,99 @@ export function TrackerCalendarView({ siteTrackerId }: { siteTrackerId: string }
 
   return (
     <>
-      <div className="grid grid-cols-7 overflow-hidden rounded-md border bg-background">
-        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
-          <div key={day} className="border-b border-r bg-muted p-2 text-center text-xs font-medium">
-            {day}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setVisibleMonth((month) => subMonths(month, 1))}
+            aria-label="Previous month"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="min-w-40 text-center text-sm font-semibold">
+            {format(visibleMonth, 'MMMM yyyy')}
           </div>
-        ))}
-        {days.map((day) => {
-          const key = format(day, 'yyyy-MM-dd');
-          const entries = entriesByDueDate.get(key) ?? [];
-          return (
-            <div key={key} className="min-h-32 border-b border-r p-2">
-              <div className="text-xs font-medium">{format(day, 'MMM d')}</div>
-              <div className="mt-2 grid gap-1">
-                {entries.slice(0, 4).map((entry) => {
-                  const task = tasksById.get(entry.task_id);
-                  return (
-                    <button
-                      key={entry.id}
-                      type="button"
-                      className={`truncate rounded border px-2 py-1 text-left text-xs ${statusTone(entry.status)}`}
-                      onClick={() => setSelected(entry)}
-                    >
-                      {task?.name ?? entry.period_label}
-                    </button>
-                  );
-                })}
-                {entries.length > 4 && (
-                  <div className="text-xs text-muted-foreground">+{entries.length - 4} more</div>
-                )}
-              </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setVisibleMonth((month) => addMonths(month, 1))}
+            aria-label="Next month"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setVisibleMonth(startOfMonth(new Date()))}
+          >
+            Today
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-7 overflow-hidden rounded-md border bg-background">
+          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+            <div
+              key={day}
+              className="border-b border-r bg-muted p-2 text-center text-xs font-medium"
+            >
+              {day}
             </div>
-          );
-        })}
+          ))}
+          {days.map((day) => {
+            const key = format(day, 'yyyy-MM-dd');
+            const entries = entriesByDueDate.get(key) ?? [];
+            const inMonth = isSameMonth(day, visibleMonth);
+            return (
+              <div
+                key={key}
+                className={`min-h-32 border-b border-r p-2 ${
+                  inMonth ? 'bg-background' : 'bg-muted/25 text-muted-foreground'
+                }`}
+              >
+                <div
+                  className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-medium ${
+                    isToday(day) ? 'bg-primary text-primary-foreground' : ''
+                  }`}
+                >
+                  {format(day, 'd')}
+                </div>
+                <div className="mt-2 grid gap-1">
+                  {entries.slice(0, 4).map((entry) => {
+                    const taskList = taskListsById.get(entry.task_list_id);
+                    return (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        className={`truncate rounded border px-2 py-1 text-left text-xs ${statusTone(entry.status)}`}
+                        onClick={() => setSelected(entry)}
+                      >
+                        {taskList?.name ?? entry.period_label}
+                      </button>
+                    );
+                  })}
+                  {entries.length > 4 && (
+                    <div className="text-xs text-muted-foreground">
+                      +{entries.length - 4} more
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {selected ? tasksById.get(selected.task_id)?.name ?? 'Task entry' : 'Task entry'}
+              {selected
+                ? taskListsById.get(selected.task_list_id)?.name ?? 'Task entry'
+                : 'Task entry'}
             </DialogTitle>
           </DialogHeader>
           {selected && (

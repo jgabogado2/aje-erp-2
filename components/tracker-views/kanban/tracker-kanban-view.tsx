@@ -17,7 +17,7 @@ import { ApiError } from '@/lib/api-client';
 import { statusTone } from '@/lib/tracker-view';
 import { TASK_STATUSES, type TaskStatus } from '@/lib/tracker.types';
 import { useTrackerEntries, useUpdateTrackerEntry } from '@/hooks/use-tracker-entries';
-import type { TaskEntry, TaskWithAssignee } from '@/types/domain';
+import type { TaskEntry, TaskListWithAssignee } from '@/types/domain';
 import { STATUS_LABEL } from '@/components/tracker-views/tracker-status-select';
 
 export function TrackerKanbanView({ siteTrackerId }: { siteTrackerId: string }) {
@@ -25,11 +25,11 @@ export function TrackerKanbanView({ siteTrackerId }: { siteTrackerId: string }) 
   const updateEntry = useUpdateTrackerEntry(siteTrackerId);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  const tasksById = useMemo(() => {
-    const map = new Map<string, TaskWithAssignee>();
-    for (const task of query.data?.tasks ?? []) map.set(task.id, task);
+  const taskListsById = useMemo(() => {
+    const map = new Map<string, TaskListWithAssignee>();
+    for (const taskList of query.data?.task_lists ?? []) map.set(taskList.id, taskList);
     return map;
-  }, [query.data?.tasks]);
+  }, [query.data?.task_lists]);
 
   const entriesByStatus = useMemo(() => {
     const map = new Map<TaskStatus, TaskEntry[]>();
@@ -61,15 +61,17 @@ export function TrackerKanbanView({ siteTrackerId }: { siteTrackerId: string }) 
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="grid gap-3 lg:grid-cols-4">
-        {TASK_STATUSES.map((status) => (
-          <KanbanColumn
-            key={status}
-            status={status}
-            entries={entriesByStatus.get(status) ?? []}
-            tasksById={tasksById}
-          />
-        ))}
+      <div className="overflow-x-auto pb-2">
+        <div className="grid min-w-[920px] grid-cols-4 gap-3">
+          {TASK_STATUSES.map((status) => (
+            <KanbanColumn
+              key={status}
+              status={status}
+              entries={entriesByStatus.get(status) ?? []}
+              taskListsById={taskListsById}
+            />
+          ))}
+        </div>
       </div>
     </DndContext>
   );
@@ -78,26 +80,32 @@ export function TrackerKanbanView({ siteTrackerId }: { siteTrackerId: string }) 
 function KanbanColumn({
   status,
   entries,
-  tasksById,
+  taskListsById,
 }: {
   status: TaskStatus;
   entries: TaskEntry[];
-  tasksById: Map<string, TaskWithAssignee>;
+  taskListsById: Map<string, TaskListWithAssignee>;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `status:${status}` });
 
   return (
     <div
       ref={setNodeRef}
-      className={`min-h-96 rounded-md border bg-muted/20 p-3 ${isOver ? 'ring-2 ring-primary' : ''}`}
+      className={`flex h-[min(720px,calc(100vh-16rem))] min-h-96 flex-col rounded-md border bg-muted/20 p-3 ${
+        isOver ? 'ring-2 ring-primary' : ''
+      }`}
     >
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex shrink-0 items-center justify-between">
         <h3 className="text-sm font-semibold">{STATUS_LABEL[status]}</h3>
         <Badge variant="secondary">{entries.length}</Badge>
       </div>
-      <div className="grid gap-2">
+      <div className="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1">
         {entries.map((entry) => (
-          <KanbanCard key={entry.id} entry={entry} task={tasksById.get(entry.task_id)} />
+          <KanbanCard
+            key={entry.id}
+            entry={entry}
+            taskList={taskListsById.get(entry.task_list_id)}
+          />
         ))}
       </div>
     </div>
@@ -106,10 +114,10 @@ function KanbanColumn({
 
 function KanbanCard({
   entry,
-  task,
+  taskList,
 }: {
   entry: TaskEntry;
-  task?: TaskWithAssignee;
+  taskList?: TaskListWithAssignee;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `entry:${entry.id}`,
@@ -125,14 +133,14 @@ function KanbanCard({
       {...attributes}
       {...listeners}
     >
-      <div className="font-medium">{task?.name ?? 'Task'}</div>
+      <div className="font-medium">{taskList?.name ?? 'Task item'}</div>
       <div className="mt-1 text-xs text-muted-foreground">
         {entry.period_label} / due {entry.due_date}
       </div>
       <div className="mt-2 flex flex-wrap gap-1">
         <Badge className={statusTone(entry.status)}>{STATUS_LABEL[entry.status]}</Badge>
-        {task?.assignee && (
-          <Badge variant="outline">{task.assignee.name ?? task.assignee.email}</Badge>
+        {taskList?.assignee && (
+          <Badge variant="outline">{taskList.assignee.name ?? taskList.assignee.email}</Badge>
         )}
       </div>
     </div>

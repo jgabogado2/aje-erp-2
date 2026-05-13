@@ -53,7 +53,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
         .order('display_order', { ascending: true }),
       supabase
         .from('task_lists')
-        .select('*')
+        .select('*, assignee:users!task_lists_assigned_to_fkey(id, name, email, image)')
         .eq('site_tracker_id', siteTrackerId)
         .order('display_order', { ascending: true }),
     ]);
@@ -64,29 +64,34 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     if (query.task_list_id) {
       taskLists = taskLists.filter((taskList) => taskList.id === query.task_list_id);
     }
+    if (query.assignee) {
+      taskLists = taskLists.filter((taskList) => taskList.assigned_to === query.assignee);
+    }
+    if (query.search) {
+      const term = query.search.toLowerCase();
+      taskLists = taskLists.filter((taskList) =>
+        String(taskList.name ?? '').toLowerCase().includes(term)
+      );
+    }
     const taskListIds = taskLists.map((taskList) => taskList.id as string);
 
     let tasks: unknown[] = [];
     if (taskListIds.length > 0) {
-      let taskQuery = supabase
+      const tasksResult = await supabase
         .from('tasks')
-        .select('*, assignee:users!tasks_assigned_to_fkey(id, name, email, image)')
+        .select('*')
         .in('task_list_id', taskListIds)
         .order('display_order', { ascending: true });
-      if (query.assignee) taskQuery = taskQuery.eq('assigned_to', query.assignee);
-      if (query.search) taskQuery = taskQuery.ilike('name', `%${query.search}%`);
-      const tasksResult = await taskQuery;
       if (tasksResult.error) throw tasksResult.error;
       tasks = tasksResult.data ?? [];
     }
 
-    const taskIds = tasks.map((task) => (task as { id: string }).id);
     let entries: unknown[] = [];
-    if (taskIds.length > 0) {
+    if (taskListIds.length > 0) {
       let entriesQuery = supabase
         .from('task_entries')
         .select('*, marker:users!task_entries_marked_by_fkey(id, name, email, image)')
-        .in('task_id', taskIds)
+        .in('task_list_id', taskListIds)
         .order('period_date', { ascending: true })
         .order('period_label', { ascending: true });
       if (query.status) entriesQuery = entriesQuery.eq('status', query.status);
