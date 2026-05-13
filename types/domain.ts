@@ -107,6 +107,64 @@ export interface SiteTrackerWithCategory extends SiteTracker {
   >;
 }
 
+export interface AuditLogEntry {
+  id: string;
+  user_id: string | null;
+  organization_id: string;
+  site_id: string | null;
+  entity_type:
+    | 'task_entry'
+    | 'site'
+    | 'user'
+    | 'tracker_category'
+    | 'site_tracker'
+    | 'tracker_section'
+    | 'task_list'
+    | 'task';
+  entity_id: string;
+  action: 'create' | 'update' | 'delete' | 'status_change';
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  created_at: string;
+  actor?: Pick<UserProfile, 'id' | 'name' | 'email' | 'image'> | null;
+  site?: { id: string; code: string; name: string } | null;
+}
+
+export interface AuditLogPage {
+  rows: AuditLogEntry[];
+  next_cursor: string | null;
+}
+
+// Attachments (Phase 4b) ------------------------------------------------
+
+export interface Attachment {
+  id: string;
+  task_entry_id: string;
+  storage_path: string;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_by: string | null;
+  uploaded_at: string;
+}
+
+/** GET response — embeds a short-lived signed URL for direct download. */
+export interface AttachmentWithUrl extends Attachment {
+  signed_url: string;
+  uploader?: Pick<UserProfile, 'id' | 'name' | 'email' | 'image'> | null;
+}
+
+export interface AttachmentSignResponse {
+  upload_url: string;
+  storage_path: string;
+  expires_in: number;
+  /**
+   * Some Supabase versions return an opaque token alongside the URL; clients
+   * pass it back in the PUT request header. We forward it untouched.
+   */
+  token?: string;
+}
+
 export interface Holiday {
   id: string;
   organization_id: string;

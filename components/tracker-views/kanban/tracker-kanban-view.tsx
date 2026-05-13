@@ -17,7 +17,7 @@ import { ApiError } from '@/lib/api-client';
 import { statusTone } from '@/lib/tracker-view';
 import { TASK_STATUSES, type TaskStatus } from '@/lib/tracker.types';
 import { useTrackerEntries, useUpdateTrackerEntry } from '@/hooks/use-tracker-entries';
-import type { TaskEntry, TaskListWithAssignee } from '@/types/domain';
+import type { Task, TaskEntry, TaskListWithAssignee } from '@/types/domain';
 import { STATUS_LABEL } from '@/components/tracker-views/tracker-status-select';
 
 export function TrackerKanbanView({ siteTrackerId }: { siteTrackerId: string }) {
@@ -30,6 +30,17 @@ export function TrackerKanbanView({ siteTrackerId }: { siteTrackerId: string }) 
     for (const taskList of query.data?.task_lists ?? []) map.set(taskList.id, taskList);
     return map;
   }, [query.data?.task_lists]);
+
+  // Group subtasks by parent so each card can show "n/m subtasks" without
+  // walking the full subtask list every render.
+  const subtasksByTaskList = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const subtask of query.data?.tasks ?? []) {
+      if (!map.has(subtask.task_list_id)) map.set(subtask.task_list_id, []);
+      map.get(subtask.task_list_id)!.push(subtask);
+    }
+    return map;
+  }, [query.data?.tasks]);
 
   const entriesByStatus = useMemo(() => {
     const map = new Map<TaskStatus, TaskEntry[]>();
@@ -69,6 +80,7 @@ export function TrackerKanbanView({ siteTrackerId }: { siteTrackerId: string }) 
               status={status}
               entries={entriesByStatus.get(status) ?? []}
               taskListsById={taskListsById}
+              subtasksByTaskList={subtasksByTaskList}
             />
           ))}
         </div>
@@ -81,10 +93,12 @@ function KanbanColumn({
   status,
   entries,
   taskListsById,
+  subtasksByTaskList,
 }: {
   status: TaskStatus;
   entries: TaskEntry[];
   taskListsById: Map<string, TaskListWithAssignee>;
+  subtasksByTaskList: Map<string, Task[]>;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `status:${status}` });
 
@@ -105,6 +119,7 @@ function KanbanColumn({
             key={entry.id}
             entry={entry}
             taskList={taskListsById.get(entry.task_list_id)}
+            subtasks={subtasksByTaskList.get(entry.task_list_id) ?? []}
           />
         ))}
       </div>
@@ -115,13 +130,23 @@ function KanbanColumn({
 function KanbanCard({
   entry,
   taskList,
+  subtasks,
 }: {
   entry: TaskEntry;
   taskList?: TaskListWithAssignee;
+  subtasks: Task[];
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `entry:${entry.id}`,
   });
+
+  // Only count completions for subtasks that still exist (the JSONB may
+  // hold stale ids if a subtask was deleted after being checked off).
+  const subtaskIds = new Set(subtasks.map((s) => s.id));
+  const doneCount = (entry.subtask_completions ?? []).filter((id) => subtaskIds.has(id))
+    .length;
+  const totalSubtasks = subtasks.length;
+
   return (
     <div
       ref={setNodeRef}
@@ -141,6 +166,18 @@ function KanbanCard({
         <Badge className={statusTone(entry.status)}>{STATUS_LABEL[entry.status]}</Badge>
         {taskList?.assignee && (
           <Badge variant="outline">{taskList.assignee.name ?? taskList.assignee.email}</Badge>
+        )}
+        {totalSubtasks > 0 && (
+          <Badge
+            variant="outline"
+            className={
+              doneCount === totalSubtasks
+                ? 'border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+                : ''
+            }
+          >
+            {doneCount}/{totalSubtasks} subtasks
+          </Badge>
         )}
       </div>
     </div>

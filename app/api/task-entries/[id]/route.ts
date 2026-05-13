@@ -11,6 +11,7 @@ import {
 import { canReadAtSite, siteIdForTaskEntry } from '@/lib/api/hierarchy-auth';
 import { taskEntryUpdateSchema } from '@/lib/validations/task-entry';
 import { checkCutoff } from '@/lib/task-engine';
+import { recordAudit } from '@/lib/api/audit';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -28,9 +29,12 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     const body = await req.json();
     const input = taskEntryUpdateSchema.parse(body);
 
+    // Fetch full pre-state for the audit diff (status, submission_date,
+    // bir_status, value, note, subtask_completions). Costs one extra read
+    // but keeps audit rows accurate.
     const { data: entry, error: entryError } = await supabase
       .from('task_entries')
-      .select('id, due_date, task_list_id')
+      .select('id, due_date, task_list_id, status, bir_status, submission_date, value, note, subtask_completions, marked_by, marked_at')
       .eq('id', id)
       .maybeSingle();
     if (entryError) throw entryError;
@@ -70,6 +74,18 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       .select('*, marker:users!task_entries_marked_by_fkey(id, name, email, image)')
       .single();
     if (error) throw error;
+
+    // Status changes get a distinct action label so the audit UI can group
+    // them; any other field change is a plain update.
+    const isStatusChange = input.status !== undefined && input.status !== entry.status;
+    await recordAudit(supabase, caller, {
+      entity_type: 'task_entry',
+      entity_id: id,
+      action: isStatusChange ? 'status_change' : 'update',
+      old_value: entry,
+      new_value: data,
+      site_id: siteId,
+    });
 
     return apiSuccess(data);
   } catch (err) {

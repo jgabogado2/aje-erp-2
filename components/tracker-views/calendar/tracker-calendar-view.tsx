@@ -16,9 +16,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TrackerStatusSelect } from '@/components/tracker-views/tracker-status-select';
+import { AttachmentList } from '@/components/attachments/attachment-list';
+import { AttachmentUploader } from '@/components/attachments/attachment-uploader';
 import { statusTone } from '@/lib/tracker-view';
 import { useTrackerEntries, useUpdateTrackerEntry } from '@/hooks/use-tracker-entries';
-import type { TaskEntry, TaskListWithAssignee } from '@/types/domain';
+import type { Task, TaskEntry, TaskListWithAssignee } from '@/types/domain';
 
 export function TrackerCalendarView({ siteTrackerId }: { siteTrackerId: string }) {
   const query = useTrackerEntries(siteTrackerId);
@@ -31,6 +33,27 @@ export function TrackerCalendarView({ siteTrackerId }: { siteTrackerId: string }
     for (const taskList of query.data?.task_lists ?? []) map.set(taskList.id, taskList);
     return map;
   }, [query.data?.task_lists]);
+
+  const subtasksByTaskList = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const subtask of query.data?.tasks ?? []) {
+      if (!map.has(subtask.task_list_id)) map.set(subtask.task_list_id, []);
+      map.get(subtask.task_list_id)!.push(subtask);
+    }
+    return map;
+  }, [query.data?.tasks]);
+
+  function toggleSubtask(entry: TaskEntry, subtaskId: string, done: boolean) {
+    const next = done
+      ? Array.from(new Set([...(entry.subtask_completions ?? []), subtaskId]))
+      : (entry.subtask_completions ?? []).filter((id) => id !== subtaskId);
+    updateEntry.mutate({ id: entry.id, input: { subtask_completions: next } });
+    // Optimistically reflect the toggle in the open dialog so the checkbox
+    // ticks immediately instead of waiting for the refetch.
+    setSelected((prev) =>
+      prev && prev.id === entry.id ? { ...prev, subtask_completions: next } : prev
+    );
+  }
 
   const days = useMemo(() => {
     const start = startOfWeek(visibleMonth, { weekStartsOn: 1 });
@@ -163,6 +186,52 @@ export function TrackerCalendarView({ siteTrackerId }: { siteTrackerId: string }
                 }
                 disabled={updateEntry.isPending}
               />
+              {(() => {
+                const subtasks = subtasksByTaskList.get(selected.task_list_id) ?? [];
+                if (subtasks.length === 0) return null;
+                const completions = new Set(selected.subtask_completions ?? []);
+                return (
+                  <div className="grid gap-1.5 rounded-md border p-3">
+                    <div className="text-xs font-medium text-muted-foreground">
+                      Subtasks
+                    </div>
+                    {subtasks.map((subtask) => {
+                      const done = completions.has(subtask.id);
+                      return (
+                        <label
+                          key={subtask.id}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={done}
+                            disabled={updateEntry.isPending}
+                            onChange={(e) =>
+                              toggleSubtask(selected, subtask.id, e.target.checked)
+                            }
+                          />
+                          <span className={done ? 'text-muted-foreground line-through' : ''}>
+                            {subtask.name}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              {/* Attachments — per-period evidence. Always visible so users
+                  have a clear place to drop receipts/PDFs. */}
+              <div className="grid gap-2 rounded-md border p-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Attachments
+                  </div>
+                  <AttachmentUploader taskEntryId={selected.id} />
+                </div>
+                <AttachmentList taskEntryId={selected.id} />
+              </div>
             </div>
           )}
         </DialogContent>

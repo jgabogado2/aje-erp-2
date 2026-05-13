@@ -15,6 +15,7 @@ import {
   siteIdForSiteTracker,
 } from '@/lib/api/hierarchy-auth';
 import { sectionCreateSchema } from '@/lib/validations/section';
+import { recordAudit } from '@/lib/api/audit';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -85,6 +86,15 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       }
       throw error;
     }
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'tracker_section',
+      entity_id: data.id as string,
+      action: 'create',
+      new_value: data,
+      site_id: siteId,
+    });
+
     return apiSuccess(data, 201);
   } catch (err) {
     return handleUnknownError(err);

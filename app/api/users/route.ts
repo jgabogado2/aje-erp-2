@@ -9,6 +9,7 @@ import {
   handleUnknownError,
 } from '@/lib/api/response';
 import { userInviteSchema } from '@/lib/validations/user';
+import { recordAudit } from '@/lib/api/audit';
 
 export async function GET() {
   try {
@@ -101,6 +102,14 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) throw error;
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'user',
+      entity_id: data.id as string,
+      action: 'create',
+      new_value: data,
+    });
+
     return apiSuccess(data, 201);
   } catch (err) {
     return handleUnknownError(err);

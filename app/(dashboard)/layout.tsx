@@ -20,6 +20,7 @@ const adminNavigation: NavSection = {
     { title: "Sites", href: "/admin/sites", icon: "projects" as const },
     { title: "Trackers", href: "/admin/trackers", icon: "tasks" as const },
     { title: "Users", href: "/admin/users", icon: "team" as const },
+    { title: "Audit log", href: "/admin/audit", icon: "analytics" as const },
   ],
 };
 

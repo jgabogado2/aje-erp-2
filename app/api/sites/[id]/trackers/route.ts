@@ -11,6 +11,7 @@ import {
   handleUnknownError,
 } from '@/lib/api/response';
 import { siteTrackerAssignSchema } from '@/lib/validations/tracker';
+import { recordAudit } from '@/lib/api/audit';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -142,6 +143,15 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       .single();
 
     if (error) throw error;
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'site_tracker',
+      entity_id: newId as string,
+      action: 'create',
+      new_value: data,
+      site_id: siteId,
+    });
+
     return apiSuccess(data, 201);
   } catch (err) {
     return handleUnknownError(err);

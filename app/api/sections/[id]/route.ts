@@ -15,6 +15,7 @@ import {
   siteIdForSection,
 } from '@/lib/api/hierarchy-auth';
 import { sectionUpdateSchema } from '@/lib/validations/section';
+import { recordAudit } from '@/lib/api/audit';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -56,6 +57,12 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     const body = await req.json();
     const input = sectionUpdateSchema.parse(body);
 
+    const { data: previous } = await supabase
+      .from('tracker_sections')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
     const { data, error } = await supabase
       .from('tracker_sections')
       .update(input)
@@ -69,6 +76,16 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       }
       throw error;
     }
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'tracker_section',
+      entity_id: id,
+      action: 'update',
+      old_value: previous,
+      new_value: data,
+      site_id: siteId,
+    });
+
     return apiSuccess(data);
   } catch (err) {
     return handleUnknownError(err);
@@ -96,6 +113,15 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
       .maybeSingle();
     if (error) throw error;
     if (!data) return apiNotFound('Section not found');
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'tracker_section',
+      entity_id: id,
+      action: 'delete',
+      old_value: data,
+      site_id: siteId,
+    });
+
     return apiSuccess(data);
   } catch (err) {
     return handleUnknownError(err);

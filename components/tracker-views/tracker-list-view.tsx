@@ -73,9 +73,9 @@ export function TrackerListView({ siteTrackerId }: { siteTrackerId: string }) {
     <div className="space-y-4">
       <TrackerSummaryCards summary={query.data.summary} />
       <TrackerViewToolbar
+        siteTrackerId={siteTrackerId}
         filters={filters}
         taskLists={query.data.task_lists}
-        tasks={query.data.tasks}
         onChange={setFilters}
         onRefresh={() => query.refetch()}
       />

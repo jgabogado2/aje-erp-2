@@ -39,7 +39,6 @@ import {
   PageEmptyState,
 } from '@/components/layout';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog,
   AlertDialogAction,

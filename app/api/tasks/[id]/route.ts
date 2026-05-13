@@ -14,6 +14,7 @@ import {
   siteIdForTask,
 } from '@/lib/api/hierarchy-auth';
 import { taskUpdateSchema } from '@/lib/validations/task';
+import { recordAudit } from '@/lib/api/audit';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -55,6 +56,12 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     const body = await req.json();
     const input = taskUpdateSchema.parse(body);
 
+    const { data: previous } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
     if (input.task_list_id) {
       const [{ data: currentTask }, { data: targetList }] = await Promise.all([
         supabase
@@ -87,6 +94,16 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       .select('*')
       .single();
     if (error) throw error;
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'task',
+      entity_id: id,
+      action: 'update',
+      old_value: previous,
+      new_value: data,
+      site_id: siteId,
+    });
+
     return apiSuccess(data);
   } catch (err) {
     return handleUnknownError(err);
@@ -112,6 +129,15 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
       .maybeSingle();
     if (error) throw error;
     if (!data) return apiNotFound('Task not found');
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'task',
+      entity_id: id,
+      action: 'delete',
+      old_value: data,
+      site_id: siteId,
+    });
+
     return apiSuccess(data);
   } catch (err) {
     return handleUnknownError(err);

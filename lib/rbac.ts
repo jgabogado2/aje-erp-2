@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { requireAuth, requireRole, checkRole } from '@/lib/auth-server';
+import { requireAuth } from '@/lib/auth-server';
 import { getUserRole } from '@/lib/auth-utils';
 import type { SystemRole, SiteRole } from '@/lib/auth.types';
 

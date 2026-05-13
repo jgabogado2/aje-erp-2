@@ -10,6 +10,7 @@ import {
   handleUnknownError,
 } from '@/lib/api/response';
 import { trackerCategoryUpdateSchema } from '@/lib/validations/tracker';
+import { recordAudit } from '@/lib/api/audit';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -49,7 +50,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 
     const { data: current } = await supabase
       .from('tracker_categories')
-      .select('id, name, frequency')
+      .select('*')
       .eq('id', id)
       .eq('organization_id', caller.organizationId)
       .maybeSingle();
@@ -92,6 +93,15 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       .single();
 
     if (error) throw error;
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'tracker_category',
+      entity_id: id,
+      action: 'update',
+      old_value: current,
+      new_value: data,
+    });
+
     return apiSuccess(data);
   } catch (err) {
     return handleUnknownError(err);
@@ -130,6 +140,14 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
 
     if (error) throw error;
     if (!data) return apiNotFound('Tracker category not found');
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'tracker_category',
+      entity_id: id,
+      action: 'delete',
+      old_value: data,
+    });
+
     return apiSuccess(data);
   } catch (err) {
     return handleUnknownError(err);

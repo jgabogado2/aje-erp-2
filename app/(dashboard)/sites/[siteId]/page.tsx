@@ -100,12 +100,17 @@ export default function SiteDetailPage({ params }: PageProps) {
       title={site?.name ?? 'Loading…'}
       description={site ? `${site.code}${site.address ? ` · ${site.address}` : ''}` : undefined}
       actions={
-        isSuperAdmin && (
-          <Button onClick={() => setAssignOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Assign tracker
+        <div className="flex items-center gap-2">
+          <Button asChild variant="ghost" size="sm">
+            <Link href={`/sites/${siteId}/audit`}>Audit log</Link>
           </Button>
-        )
+          {isSuperAdmin && (
+            <Button onClick={() => setAssignOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Assign tracker
+            </Button>
+          )}
+        </div>
       }
     >
       <PageSection

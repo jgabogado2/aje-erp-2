@@ -2,7 +2,6 @@ import { format, parseISO } from 'date-fns';
 import type {
   Task,
   TaskEntry,
-  TaskList,
   TaskListWithAssignee,
   TrackerSection,
 } from '@/types/domain';

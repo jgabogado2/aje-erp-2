@@ -9,6 +9,7 @@ import {
   handleUnknownError,
 } from '@/lib/api/response';
 import { userUpdateSchema } from '@/lib/validations/user';
+import { recordAudit } from '@/lib/api/audit';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -56,7 +57,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 
     const { data: existing } = await supabase
       .from('organization_members')
-      .select('id, user_id, email')
+      .select('*')
       .eq('id', id)
       .eq('organization_id', caller.organizationId)
       .maybeSingle();
@@ -79,6 +80,15 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       .single();
 
     if (error) throw error;
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'user',
+      entity_id: id,
+      action: 'update',
+      old_value: existing,
+      new_value: data,
+    });
+
     return apiSuccess(data);
   } catch (err) {
     return handleUnknownError(err);

@@ -10,6 +10,7 @@ import {
   handleUnknownError,
 } from '@/lib/api/response';
 import { siteTrackerUpdateSchema } from '@/lib/validations/tracker';
+import { recordAudit } from '@/lib/api/audit';
 
 type RouteContext = { params: Promise<{ id: string; trackerId: string }> };
 
@@ -58,7 +59,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     // Verify site_tracker exists and is in caller's org via the site join.
     const { data: current } = await supabase
       .from('site_trackers')
-      .select('id, site:sites!inner(organization_id)')
+      .select('*, site:sites!inner(organization_id)')
       .eq('id', trackerId)
       .eq('site_id', siteId)
       .maybeSingle();
@@ -75,6 +76,22 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       .single();
 
     if (error) throw error;
+
+    // Strip the joined `site` from the old-value snapshot so the audit diff
+    // only compares actual site_trackers columns.
+    const { site: _site, ...currentRow } = current as Record<string, unknown> & {
+      site?: unknown;
+    };
+    void _site;
+    await recordAudit(supabase, caller, {
+      entity_type: 'site_tracker',
+      entity_id: trackerId,
+      action: 'update',
+      old_value: currentRow,
+      new_value: data,
+      site_id: siteId,
+    });
+
     return apiSuccess(data);
   } catch (err) {
     return handleUnknownError(err);
@@ -112,6 +129,15 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
 
     if (error) throw error;
     if (!data) return apiNotFound('Site tracker not found');
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'site_tracker',
+      entity_id: trackerId,
+      action: 'delete',
+      old_value: data,
+      site_id: siteId,
+    });
+
     return apiSuccess(data);
   } catch (err) {
     return handleUnknownError(err);

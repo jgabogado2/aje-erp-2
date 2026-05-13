@@ -1,11 +1,17 @@
 'use client';
 
-import { RefreshCw } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { TASK_STATUSES, type TaskStatus } from '@/lib/tracker.types';
-import type { Task, TaskListWithAssignee } from '@/types/domain';
+import type { TaskListWithAssignee } from '@/types/domain';
 
 export interface TrackerViewFilters {
   search?: string;
@@ -17,15 +23,15 @@ export interface TrackerViewFilters {
 export function TrackerViewToolbar({
   filters,
   taskLists,
-  tasks,
   onChange,
   onRefresh,
+  siteTrackerId,
 }: {
   filters: TrackerViewFilters;
   taskLists: TaskListWithAssignee[];
-  tasks: Task[];
   onChange: (filters: TrackerViewFilters) => void;
   onRefresh: () => void;
+  siteTrackerId?: string;
 }) {
   const assignees = new Map<string, string>();
   for (const taskList of taskLists) {
@@ -33,6 +39,12 @@ export function TrackerViewToolbar({
       assignees.set(taskList.assigned_to, taskList.assignee.name ?? taskList.assignee.email);
     }
   }
+
+  const exportQuery = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) exportQuery.set(key, String(value));
+  }
+  const exportSuffix = exportQuery.toString() ? `?${exportQuery.toString()}` : '';
 
   return (
     <div className="flex flex-col gap-2 rounded-md border bg-background p-3 lg:flex-row">
@@ -85,7 +97,36 @@ export function TrackerViewToolbar({
           </option>
         ))}
       </Select>
-      <Button type="button" variant="outline" onClick={onRefresh} className="lg:ml-auto">
+      {siteTrackerId && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="outline" className="lg:ml-auto">
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <a href={`/api/site-trackers/${siteTrackerId}/export.xlsx${exportSuffix}`}>
+                <FileSpreadsheet className="h-4 w-4" />
+                Excel
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href={`/api/site-trackers/${siteTrackerId}/export.pdf${exportSuffix}`}>
+                <FileText className="h-4 w-4" />
+                PDF
+              </a>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onRefresh}
+        className={siteTrackerId ? undefined : 'lg:ml-auto'}
+      >
         <RefreshCw className="mr-2 h-4 w-4" />
         Refresh
       </Button>

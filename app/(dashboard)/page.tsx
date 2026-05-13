@@ -9,6 +9,9 @@ import {
   CheckCircle2,
   Clock3,
   CalendarDays,
+  Download,
+  FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
 import {
   PageContainer,
@@ -18,6 +21,12 @@ import {
 } from '@/components/layout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useSites } from '@/hooks/use-sites';
 import { useUsers } from '@/hooks/use-users';
 import { useDashboardSummary } from '@/hooks/use-dashboard-summary';
@@ -68,6 +77,10 @@ function SuperAdminDashboard() {
 
   return (
     <>
+      <div className="flex justify-end">
+        <DashboardExportDropdown />
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Sites"
@@ -174,6 +187,10 @@ function MemberDashboard({ role }: { role: SystemRole }) {
 
   return (
     <>
+      <div className="flex justify-end">
+        <DashboardExportDropdown siteId={currentSiteId ?? undefined} />
+      </div>
+
       <PageCard>
         <div className="flex items-center gap-4">
           <div className="rounded-lg bg-primary/10 p-3">
@@ -219,6 +236,35 @@ function MemberDashboard({ role }: { role: SystemRole }) {
 
       <DashboardLists summary={summaryQuery.data} />
     </>
+  );
+}
+
+function DashboardExportDropdown({ siteId }: { siteId?: string }) {
+  const qs = siteId ? `?site_id=${encodeURIComponent(siteId)}` : '';
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="outline" size="sm">
+          <Download className="mr-2 h-4 w-4" />
+          Export summary
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <a href={`/api/dashboard/export.xlsx${qs}`}>
+            <FileSpreadsheet className="h-4 w-4" />
+            Excel
+          </a>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <a href={`/api/dashboard/export.pdf${qs}`}>
+            <FileText className="h-4 w-4" />
+            PDF
+          </a>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

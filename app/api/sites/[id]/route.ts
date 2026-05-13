@@ -11,6 +11,7 @@ import {
   handleUnknownError,
 } from '@/lib/api/response';
 import { siteUpdateSchema } from '@/lib/validations/site';
+import { recordAudit } from '@/lib/api/audit';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -51,10 +52,10 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 
     const supabase = getSupabaseAdmin();
 
-    // Make sure the target lives inside the caller's org before touching it.
+    // Fetch the full row for audit diffing, and to check org scope.
     const { data: current } = await supabase
       .from('sites')
-      .select('id, code')
+      .select('*')
       .eq('id', id)
       .eq('organization_id', caller.organizationId)
       .maybeSingle();
@@ -81,6 +82,16 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       .single();
 
     if (error) throw error;
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'site',
+      entity_id: id,
+      action: 'update',
+      old_value: current,
+      new_value: data,
+      site_id: id,
+    });
+
     return apiSuccess(data);
   } catch (err) {
     return handleUnknownError(err);
@@ -108,6 +119,14 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
 
     if (error) throw error;
     if (!data) return apiNotFound('Site not found');
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'site',
+      entity_id: id,
+      action: 'delete',
+      old_value: data,
+    });
+
     return apiSuccess(data);
   } catch (err) {
     return handleUnknownError(err);

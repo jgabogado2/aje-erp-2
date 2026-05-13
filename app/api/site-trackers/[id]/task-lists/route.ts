@@ -16,6 +16,7 @@ import {
 } from '@/lib/api/hierarchy-auth';
 import { taskListCreateSchema } from '@/lib/validations/task-list';
 import { generateEntriesForTaskListInDb } from '@/lib/api/task-entry-generation';
+import { recordAudit } from '@/lib/api/audit';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -123,6 +124,15 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       throw error;
     }
     await generateEntriesForTaskListInDb(supabase, data.id as string);
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'task_list',
+      entity_id: data.id as string,
+      action: 'create',
+      new_value: data,
+      site_id: siteId,
+    });
+
     return apiSuccess(data, 201);
   } catch (err) {
     return handleUnknownError(err);

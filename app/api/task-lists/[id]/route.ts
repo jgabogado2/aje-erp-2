@@ -16,6 +16,7 @@ import {
 } from '@/lib/api/hierarchy-auth';
 import { taskListUpdateSchema } from '@/lib/validations/task-list';
 import { regenerateFutureEntriesForTaskList } from '@/lib/api/task-entry-generation';
+import { recordAudit } from '@/lib/api/audit';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -61,6 +62,13 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       input.skip_weekends !== undefined ||
       input.skip_holidays !== undefined ||
       input.is_active !== undefined;
+
+    // Snapshot the pre-update row for audit diffing.
+    const { data: previous } = await supabase
+      .from('task_lists')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
 
     // If moving to a section, verify that section belongs to the same tracker.
     if (input.tracker_section_id) {
@@ -113,6 +121,16 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     if (shouldRegenerate) {
       await regenerateFutureEntriesForTaskList(supabase, id);
     }
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'task_list',
+      entity_id: id,
+      action: 'update',
+      old_value: previous,
+      new_value: data,
+      site_id: siteId,
+    });
+
     return apiSuccess(data);
   } catch (err) {
     return handleUnknownError(err);
@@ -140,6 +158,15 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
       .maybeSingle();
     if (error) throw error;
     if (!data) return apiNotFound('Task list not found');
+
+    await recordAudit(supabase, caller, {
+      entity_type: 'task_list',
+      entity_id: id,
+      action: 'delete',
+      old_value: data,
+      site_id: siteId,
+    });
+
     return apiSuccess(data);
   } catch (err) {
     return handleUnknownError(err);
