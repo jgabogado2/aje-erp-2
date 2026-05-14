@@ -344,7 +344,7 @@ Behavior:
 
 Smoke test:
 
-- BIR task renders 16 entries.
+- BIR task renders 12 entries (8 monthly + 4 quarterly).
 - The BIR order is exactly monthly-monthly-quarter repeated four times.
 
 ---
@@ -627,7 +627,7 @@ Manual smoke tests:
 2. **Daily List:** create DAILY task with skip weekends; verify columns/cells match generated entries.
 3. **Weekly List:** verify week labels, due dates, and submission date edits.
 4. **Monthly List:** verify 12 month columns and completion summary.
-5. **BIR List:** verify 16 columns in exact BIR order and BIR status dropdown works.
+5. **BIR List:** verify 12 columns in exact BIR order and BIR status dropdown works.
 6. **Cutoff:** mark a past-due entry Done; UI reflects server-returned Done Late.
 7. **Kanban:** drag entry from Not Done to Done; cutoff still applies.
 8. **Calendar:** due-date event opens dialog and updates entry.

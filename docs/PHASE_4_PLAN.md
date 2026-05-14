@@ -14,13 +14,14 @@ Handoff doc for Phase 4: Audit Log, Attachments, Reports/Export, and Notificatio
 | 4a | Done | Audit log (status changes + structural changes on trackers/sites/users). |
 | 4b | Done | Attachments via Supabase Storage. |
 | 4c | Done | Reports & Export — Excel (exceljs) + PDF (react-pdf). |
-| 4d | Planned | Notifications — in-app (sonner + table) + Resend email, triggered by pg_cron. |
+| 4d | Done | Notifications — in-app table + Resend digest Edge Function, scheduled by pg_cron. |
 
 **Migration application state:**
 
 - `002`–`007` applied. `006` (per-section unique task list names) and `007` (task-item promotion) were applied.
 - `008`–`009` (Phase 4a/4b migrations) — written; apply in Supabase before using audit/attachments in a deployed environment.
 - `4c` has no schema migration.
+- `4d` migration was created with the Supabase CLI: `010_notifications.sql`.
 
 ---
 
@@ -299,7 +300,7 @@ Make an entry due yesterday and run the edge function manually → confirm row i
 supabase/migrations/
   008_audit_log.sql                     📝 4a
   009_attachments.sql                   📝 4b
-  010_notifications.sql                 📝 4d
+  010_notifications.sql      ✅ 4d (CLI-created)
 
 supabase/functions/
   notification-scan/index.ts            📝 4d (edge function)
@@ -329,6 +330,21 @@ components/
   tracker-views/export-menu.tsx         📝 4c
   notifications/notification-bell.tsx   📝 4d
 ```
+
+## Phase 4d Completion Notes
+
+Shipped:
+- `notifications` table with service-role-only RLS, unread/recent indexes, and a unique `dedupe_key` so repeated scans do not duplicate reminders.
+- `GET /api/notifications` and `PATCH /api/notifications/[id]` for listing, unread counts, and mark-read toggles.
+- `hooks/use-notifications.ts` with a 60-second polling unread count.
+- Top-nav notification badge and `/notifications` page.
+- `supabase/functions/notification-scan` Edge Function that scans overdue and tomorrow-due task entries, inserts in-app notifications, sends one Resend digest per user when email env vars are configured, and stamps `emailed_at`.
+
+Deploy/setup:
+- Apply `supabase/migrations/010_notifications.sql`.
+- Set Supabase Edge Function secrets: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`.
+- Deploy `notification-scan`.
+- Enable Supabase Cron (`pg_cron`) and `pg_net`; store `project_url` and `publishable_key` in Vault, then use the commented cron block in the migration to schedule the daily scan.
 
 ---
 

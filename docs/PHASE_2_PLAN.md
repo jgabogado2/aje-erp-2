@@ -59,7 +59,7 @@ The whole point of the prior phases: turn tasks into per-period work items that 
 
 - **Asia/Manila timezone for cutoff.** Cutoff comparisons use the Manila end-of-day converted to UTC. The Philippines has a fixed UTC+8 offset, so no extra `date-fns-tz` dependency was added.
 - **Entry regeneration on task edit:** Frequency/skip-rule edits delete and regenerate future entries only, using today's Asia/Manila date. Past entries stay as audit history.
-- **BIR hybrid frequency:** BIR generates 12 monthly + 4 quarterly entries per task per year. `periodLabel`: `"January"…"December"` for monthly, `"1Q"…"4Q"` for quarterly. Quarterly `periodDate` is the end-of-quarter month start.
+- **BIR hybrid frequency:** BIR generates 12 entries per task per year — 8 monthly (Jan,Feb,Apr,May,Jul,Aug,Oct,Nov) + 4 quarterly. Quarter-closing months (Mar/Jun/Sep/Dec) are owned by the quarter entry. (Resolved in Phase 5a — see investigation note.) `periodLabel`: `"January"…"December"` for monthly, `"1Q"…"4Q"` for quarterly. Quarterly `periodDate` is the end-of-quarter month start.
 - **BIR uniqueness note:** The `task_entries` idempotency constraint is `(task_id, period_date, period_label)`, because BIR monthly and quarterly rows can share a `period_date`.
 - **Holiday matching:** `holidays` is org-scoped. Match by `date` exactly. Recurring holidays (`is_recurring = true`) match any year for the same month/day.
 
@@ -98,7 +98,7 @@ Implementation notes per frequency:
 - `MONTHLY`: 12 entries. `period_date = first of month`. `due_date = last of month`. `period_label = full month name`.
 - `QUARTERLY`: 4 entries. `period_date = first day of quarter`. `due_date = last day of quarter`. `period_label = "1Q","2Q","3Q","4Q"`.
 - `ANNUAL`: 1 entry. `due_date = year-end`.
-- `BIR`: hybrid — 12 monthly + 4 quarterly. Quarterlies get distinguishable labels (`"1Q"` etc.).
+- `BIR`: hybrid — 8 monthly + 4 quarterly = 12. Quarterlies get distinguishable labels (`"1Q"` etc.).
 - `CUSTOM`: skip generation; UI lets users create entries manually (Phase 5 enhancement; for 2c return `[]`).
 
 Cutoff in `Asia/Manila`:
@@ -140,7 +140,7 @@ Page: `/sites/[siteId]/trackers/[trackerId]/tasks/[taskId]`
 
 ### 2c.7 — Verify 2c
 
-`pnpm tsc --noEmit && pnpm build`. Manual smoke: create a DAILY task with `skip_weekends`, verify entry count matches working days in 2026. Create a BIR task, verify 16 entries (12 monthly + 4 quarterly). Mark something DONE after its due date, verify it auto-becomes DONE_LATE.
+`pnpm tsc --noEmit && pnpm build`. Manual smoke: create a DAILY task with `skip_weekends`, verify entry count matches working days in 2026. Create a BIR task, verify 12 entries (8 monthly + 4 quarterly). Mark something DONE after its due date, verify it auto-becomes DONE_LATE.
 
 ---
 

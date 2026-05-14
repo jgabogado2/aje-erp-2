@@ -1,11 +1,4 @@
-import {
-  addDays,
-  endOfMonth,
-  endOfQuarter,
-  endOfYear,
-  format,
-  startOfQuarter,
-} from 'date-fns';
+import { addDays, endOfMonth, endOfQuarter, endOfYear, format } from 'date-fns';
 import type { BirStatus, Frequency, TaskStatus } from '@/lib/tracker.types';
 
 export const MANILA_TIME_ZONE = 'Asia/Manila';
@@ -59,7 +52,10 @@ export function generateEntriesForTaskItem(
     case 'ANNUAL':
       return [draft(task, dateOnly(utcDate(year, 0, 1)), String(year), dateOnly(endOfYear(utcDate(year, 0, 1))))];
     case 'BIR':
-      return [...generateMonthly(task, year), ...generateBirQuarterly(task, year)];
+      // 12 entries: 8 monthly + 4 quarterly. The quarter-closing months
+      // (Mar/Jun/Sep/Dec) are represented by the quarter entry, not a
+      // separate monthly one — matches the HAKDA BIR view layout.
+      return [...generateBirMonthly(task, year), ...generateBirQuarterly(task, year)];
     case 'CUSTOM':
       return [];
   }
@@ -81,14 +77,31 @@ export function getCurrentPeriod(
   if (frequency === 'DAILY') {
     return { periodDate: dateOnly(date), periodLabel: format(date, 'MMM d, yyyy') };
   }
-  if (frequency === 'MONTHLY' || frequency === 'BIR') {
+  if (frequency === 'MONTHLY') {
     const first = utcDate(year, month, 1);
     return { periodDate: dateOnly(first), periodLabel: format(first, 'MMMM') };
   }
+  if (frequency === 'BIR') {
+    // BIR has no Mar/Jun/Sep/Dec monthly period — those months map to the
+    // quarter entry (anchored to the closing month, per generateBirQuarterly).
+    // Other months map to the monthly entry.
+    const isQuarterClose = month === 2 || month === 5 || month === 8 || month === 11;
+    const first = utcDate(year, month, 1);
+    if (isQuarterClose) {
+      return {
+        periodDate: dateOnly(first),
+        periodLabel: `${Math.floor(month / 3) + 1}Q`,
+      };
+    }
+    return { periodDate: dateOnly(first), periodLabel: format(first, 'MMMM') };
+  }
   if (frequency === 'QUARTERLY') {
-    const start = startOfQuarter(date);
-    const quarter = Math.floor(start.getUTCMonth() / 3) + 1;
-    return { periodDate: dateOnly(start), periodLabel: `${quarter}Q` };
+    // UTC-based quarter math. date-fns `startOfQuarter` works in local time,
+    // which produces the wrong quarter (and a date that rolls back a day via
+    // toISOString) in any non-UTC timezone — notably Asia/Manila.
+    const quarterIndex = Math.floor(month / 3); // 0..3
+    const start = utcDate(year, quarterIndex * 3, 1);
+    return { periodDate: dateOnly(start), periodLabel: `${quarterIndex + 1}Q` };
   }
   if (frequency === 'ANNUAL') {
     return { periodDate: `${year}-01-01`, periodLabel: String(year) };
@@ -157,6 +170,17 @@ function generateWeekly(task: TaskEngineItem, year: number): TaskEntryDraft[] {
 
 function generateMonthly(task: TaskEngineItem, year: number): TaskEntryDraft[] {
   return Array.from({ length: 12 }, (_, month) => {
+    const start = utcDate(year, month, 1);
+    return draft(task, dateOnly(start), format(start, 'MMMM'), dateOnly(endOfMonth(start)));
+  });
+}
+
+// BIR monthly entries exclude the quarter-closing months (Mar/Jun/Sep/Dec) —
+// those slots are owned by the quarterly entry. Result: 8 monthly entries
+// which, combined with 4 quarterly, give the 12-column BIR layout.
+function generateBirMonthly(task: TaskEngineItem, year: number): TaskEntryDraft[] {
+  const birMonths = [0, 1, 3, 4, 6, 7, 9, 10]; // Jan,Feb,Apr,May,Jul,Aug,Oct,Nov
+  return birMonths.map((month) => {
     const start = utcDate(year, month, 1);
     return draft(task, dateOnly(start), format(start, 'MMMM'), dateOnly(endOfMonth(start)));
   });

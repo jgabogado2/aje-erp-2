@@ -14,8 +14,6 @@ interface AppShellProps {
   className?: string;
   /** Default sidebar collapsed state */
   defaultCollapsed?: boolean;
-  /** Callback when search is clicked */
-  onSearchClick?: () => void;
   /** Callback when notifications is clicked */
   onNotificationsClick?: () => void;
   /** Callback when new button is clicked */
@@ -27,7 +25,6 @@ export function AppShell({
   children,
   className,
   defaultCollapsed = false,
-  onSearchClick,
   onNotificationsClick,
   onNewClick,
 }: AppShellProps) {
@@ -46,7 +43,6 @@ export function AppShell({
       {/* Top Navigation - now uses session data internally */}
       <TopNav
         sidebarCollapsed={sidebarCollapsed}
-        onSearchClick={onSearchClick}
         onNotificationsClick={onNotificationsClick}
         onNewClick={onNewClick}
         leftSlot={
@@ -100,7 +96,6 @@ export function AppShellProvider({
   children,
   className,
   defaultCollapsed = false,
-  onSearchClick,
   onNotificationsClick,
   onNewClick,
 }: AppShellProps) {
@@ -120,7 +115,6 @@ export function AppShellProvider({
         {/* Top Navigation - now uses session data internally */}
         <TopNav
           sidebarCollapsed={sidebarCollapsed}
-          onSearchClick={onSearchClick}
           onNotificationsClick={onNotificationsClick}
           onNewClick={onNewClick}
           leftSlot={
