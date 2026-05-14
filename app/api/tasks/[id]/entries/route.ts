@@ -8,7 +8,7 @@ import {
   apiNotFound,
   handleUnknownError,
 } from '@/lib/api/response';
-import { canReadAtSite, siteIdForTaskList } from '@/lib/api/hierarchy-auth';
+import { canReadTaskList } from '@/lib/api/hierarchy-auth';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -19,9 +19,10 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     if (!caller) return apiUnauthorized();
 
     const supabase = getSupabaseAdmin();
-    const siteId = await siteIdForTaskList(supabase, taskListId);
-    if (!siteId) return apiNotFound('Task item not found');
-    if (!(await canReadAtSite(caller, siteId)).ok) return apiForbidden();
+    // STAFF may only read entries on task lists assigned to them.
+    const access = await canReadTaskList(supabase, caller, taskListId);
+    if (!access.siteId) return apiNotFound('Task item not found');
+    if (!access.ok) return apiForbidden();
 
     const yearParam = req.nextUrl.searchParams.get('year');
 

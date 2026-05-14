@@ -10,7 +10,7 @@ import {
   handleUnknownError,
 } from '@/lib/api/response';
 import {
-  canReadAtSite,
+  canReadTaskList,
   canWriteAtSite,
   siteIdForTaskList,
 } from '@/lib/api/hierarchy-auth';
@@ -27,9 +27,10 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     if (!caller) return apiUnauthorized();
 
     const supabase = getSupabaseAdmin();
-    const siteId = await siteIdForTaskList(supabase, id);
-    if (!siteId) return apiNotFound('Task list not found');
-    if (!(await canReadAtSite(caller, siteId)).ok) return apiForbidden();
+    // STAFF may only read task lists assigned to them.
+    const access = await canReadTaskList(supabase, caller, id);
+    if (!access.siteId) return apiNotFound('Task list not found');
+    if (!access.ok) return apiForbidden();
 
     const { data, error } = await supabase
       .from('task_lists')

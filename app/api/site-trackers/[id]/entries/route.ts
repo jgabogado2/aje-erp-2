@@ -8,7 +8,10 @@ import {
   apiNotFound,
   handleUnknownError,
 } from '@/lib/api/response';
-import { canReadAtSite, siteIdForSiteTracker } from '@/lib/api/hierarchy-auth';
+import {
+  resolveSiteReadScope,
+  siteIdForSiteTracker,
+} from '@/lib/api/hierarchy-auth';
 import { trackerEntriesQuerySchema } from '@/lib/validations/tracker-view';
 import { calculateSummary } from '@/lib/tracker-view';
 
@@ -23,7 +26,8 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     const supabase = getSupabaseAdmin();
     const siteId = await siteIdForSiteTracker(supabase, siteTrackerId);
     if (!siteId) return apiNotFound('Site tracker not found');
-    if (!(await canReadAtSite(caller, siteId)).ok) return apiForbidden();
+    const scope = await resolveSiteReadScope(caller, siteId);
+    if (!scope.ok) return apiForbidden();
 
     const query = trackerEntriesQuerySchema.parse({
       year: req.nextUrl.searchParams.get('year') ?? undefined,
@@ -45,17 +49,25 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     if (trackerResult.error) throw trackerResult.error;
     if (!trackerResult.data) return apiNotFound('Site tracker not found');
 
+    // STAFF only see task lists assigned to them — enforced at the DB query,
+    // not via the (spoofable) ?assignee filter. Tasks and entries below are
+    // derived from this filtered set.
+    let taskListsQuery = supabase
+      .from('task_lists')
+      .select('*, assignee:users!task_lists_assigned_to_fkey(id, name, email, image)')
+      .eq('site_tracker_id', siteTrackerId)
+      .order('display_order', { ascending: true });
+    if (scope.restrictToAssignee) {
+      taskListsQuery = taskListsQuery.eq('assigned_to', caller.userId);
+    }
+
     const [sectionsResult, taskListsResult] = await Promise.all([
       supabase
         .from('tracker_sections')
         .select('*')
         .eq('site_tracker_id', siteTrackerId)
         .order('display_order', { ascending: true }),
-      supabase
-        .from('task_lists')
-        .select('*, assignee:users!task_lists_assigned_to_fkey(id, name, email, image)')
-        .eq('site_tracker_id', siteTrackerId)
-        .order('display_order', { ascending: true }),
+      taskListsQuery,
     ]);
     if (sectionsResult.error) throw sectionsResult.error;
     if (taskListsResult.error) throw taskListsResult.error;

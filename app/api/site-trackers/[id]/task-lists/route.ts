@@ -10,7 +10,7 @@ import {
   handleUnknownError,
 } from '@/lib/api/response';
 import {
-  canReadAtSite,
+  resolveSiteReadScope,
   canWriteAtSite,
   siteIdForSiteTracker,
 } from '@/lib/api/hierarchy-auth';
@@ -29,13 +29,20 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     const supabase = getSupabaseAdmin();
     const siteId = await siteIdForSiteTracker(supabase, siteTrackerId);
     if (!siteId) return apiNotFound('Site tracker not found');
-    if (!(await canReadAtSite(caller, siteId)).ok) return apiForbidden();
+    const scope = await resolveSiteReadScope(caller, siteId);
+    if (!scope.ok) return apiForbidden();
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('task_lists')
       .select('*')
       .eq('site_tracker_id', siteTrackerId)
       .order('display_order', { ascending: true });
+    // STAFF only see task lists assigned to them.
+    if (scope.restrictToAssignee) {
+      query = query.eq('assigned_to', caller.userId);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return apiSuccess(data ?? []);
   } catch (err) {

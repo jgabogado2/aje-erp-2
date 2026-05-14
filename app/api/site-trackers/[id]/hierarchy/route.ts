@@ -8,7 +8,10 @@ import {
   apiNotFound,
   handleUnknownError,
 } from '@/lib/api/response';
-import { canReadAtSite, siteIdForSiteTracker } from '@/lib/api/hierarchy-auth';
+import {
+  resolveSiteReadScope,
+  siteIdForSiteTracker,
+} from '@/lib/api/hierarchy-auth';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -24,10 +27,21 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     const siteId = await siteIdForSiteTracker(supabase, siteTrackerId);
     if (!siteId) return apiNotFound('Site tracker not found');
 
-    const access = await canReadAtSite(caller, siteId);
-    if (!access.ok) return apiForbidden();
+    const scope = await resolveSiteReadScope(caller, siteId);
+    if (!scope.ok) return apiForbidden();
 
-    const [tracker, sections, taskLists, tasks] = await Promise.all([
+    // STAFF only see task lists assigned to them — the tasks below are
+    // derived from this filtered set, so nothing leaks through the subtree.
+    let taskListsQuery = supabase
+      .from('task_lists')
+      .select('*, assignee:users!task_lists_assigned_to_fkey(id, name, email, image)')
+      .eq('site_tracker_id', siteTrackerId)
+      .order('display_order', { ascending: true });
+    if (scope.restrictToAssignee) {
+      taskListsQuery = taskListsQuery.eq('assigned_to', caller.userId);
+    }
+
+    const [tracker, sections, taskLists] = await Promise.all([
       supabase
         .from('site_trackers')
         .select(`
@@ -42,31 +56,24 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
         .select('*')
         .eq('site_tracker_id', siteTrackerId)
         .order('display_order', { ascending: true }),
-      supabase
-        .from('task_lists')
-        .select('*, assignee:users!task_lists_assigned_to_fkey(id, name, email, image)')
-        .eq('site_tracker_id', siteTrackerId)
-        .order('display_order', { ascending: true }),
-      supabase
-        .from('tasks')
-        .select('*')
-        .in(
-          'task_list_id',
-          (
-            await supabase
-              .from('task_lists')
-              .select('id')
-              .eq('site_tracker_id', siteTrackerId)
-          ).data?.map((r) => r.id as string) ?? []
-        )
-        .order('display_order', { ascending: true }),
+      taskListsQuery,
     ]);
 
     if (tracker.error) throw tracker.error;
     if (sections.error) throw sections.error;
     if (taskLists.error) throw taskLists.error;
-    if (tasks.error) throw tasks.error;
     if (!tracker.data) return apiNotFound('Site tracker not found');
+
+    const taskListIds = (taskLists.data ?? []).map((r) => r.id as string);
+    const tasks =
+      taskListIds.length > 0
+        ? await supabase
+            .from('tasks')
+            .select('*')
+            .in('task_list_id', taskListIds)
+            .order('display_order', { ascending: true })
+        : { data: [] as unknown[], error: null };
+    if (tasks.error) throw tasks.error;
 
     // Verify the tracker's site matches the access check (defense in depth
     // — guards against a TOCTOU between the helper lookup and now).

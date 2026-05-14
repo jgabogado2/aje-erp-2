@@ -9,7 +9,7 @@ import {
   apiConflict,
   handleUnknownError,
 } from '@/lib/api/response';
-import { canReadAtSite, siteIdForTaskEntry } from '@/lib/api/hierarchy-auth';
+import { canReadTaskEntry } from '@/lib/api/hierarchy-auth';
 import { attachmentRegisterSchema } from '@/lib/validations/attachment';
 import {
   ATTACHMENTS_BUCKET,
@@ -30,9 +30,9 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     if (!caller) return apiUnauthorized();
 
     const supabase = getSupabaseAdmin();
-    const siteId = await siteIdForTaskEntry(supabase, id);
-    if (!siteId) return apiNotFound('Task entry not found');
-    if (!(await canReadAtSite(caller, siteId)).ok) return apiForbidden();
+    const access = await canReadTaskEntry(supabase, caller, id);
+    if (!access.siteId) return apiNotFound('Task entry not found');
+    if (!access.ok) return apiForbidden();
 
     const { data, error } = await supabase
       .from('attachments')
@@ -79,9 +79,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     if (!caller) return apiUnauthorized();
 
     const supabase = getSupabaseAdmin();
-    const siteId = await siteIdForTaskEntry(supabase, id);
-    if (!siteId) return apiNotFound('Task entry not found');
-    if (!(await canReadAtSite(caller, siteId)).ok) return apiForbidden();
+    const access = await canReadTaskEntry(supabase, caller, id);
+    if (!access.siteId) return apiNotFound('Task entry not found');
+    if (!access.ok) return apiForbidden();
+    const siteId = access.siteId;
 
     const body = await req.json();
     const input = attachmentRegisterSchema.parse(body);

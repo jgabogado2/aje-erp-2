@@ -8,7 +8,11 @@ import {
   apiNotFound,
   handleUnknownError,
 } from '@/lib/api/response';
-import { canReadAtSite, canWriteAtSite } from '@/lib/api/hierarchy-auth';
+import {
+  canReadAtSite,
+  canWriteAtSite,
+  resolveSiteReadScope,
+} from '@/lib/api/hierarchy-auth';
 import { ATTACHMENTS_BUCKET } from '@/lib/api/storage';
 import { recordAudit } from '@/lib/api/audit';
 
@@ -31,6 +35,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
         task_entry:task_entries!inner(
           id,
           task_list:task_lists!inner(
+            assigned_to,
             site_tracker:site_trackers!inner(
               site_id
             )
@@ -42,11 +47,19 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
 
     if (!attachment) return apiNotFound('Attachment not found');
 
-    const siteId = (
-      (attachment.task_entry as unknown as {
-        task_list: { site_tracker: { site_id: string } };
-      }).task_list.site_tracker.site_id
-    );
+    const taskList = (attachment.task_entry as unknown as {
+      task_list: { assigned_to: string | null; site_tracker: { site_id: string } };
+    }).task_list;
+    const siteId = taskList.site_tracker.site_id;
+
+    // STAFF may only touch attachments on entries assigned to them — block
+    // before the uploader/manager checks so cross-staff access is impossible
+    // even for a file they happened to upload onto someone else's entry.
+    const scope = await resolveSiteReadScope(caller, siteId);
+    if (!scope.ok) return apiForbidden();
+    if (scope.restrictToAssignee && taskList.assigned_to !== caller.userId) {
+      return apiForbidden();
+    }
 
     // Anyone with site write access can remove; uploader can also remove
     // their own. (Read access is not enough — deletion is a write op.)

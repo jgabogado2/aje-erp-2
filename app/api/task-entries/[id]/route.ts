@@ -8,7 +8,7 @@ import {
   apiNotFound,
   handleUnknownError,
 } from '@/lib/api/response';
-import { canReadAtSite, siteIdForTaskEntry } from '@/lib/api/hierarchy-auth';
+import { canReadTaskEntry } from '@/lib/api/hierarchy-auth';
 import { checkRateLimit } from '@/lib/api/rate-limit';
 import { taskEntryUpdateSchema } from '@/lib/validations/task-entry';
 import { checkCutoff } from '@/lib/task-engine';
@@ -26,9 +26,12 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     if (limited) return limited;
 
     const supabase = getSupabaseAdmin();
-    const siteId = await siteIdForTaskEntry(supabase, id);
-    if (!siteId) return apiNotFound('Task entry not found');
-    if (!(await canReadAtSite(caller, siteId)).ok) return apiForbidden();
+    // STAFF may only write entries on task lists assigned to them;
+    // SITE_MANAGER / SUPER_ADMIN may write any entry in their sites.
+    const access = await canReadTaskEntry(supabase, caller, id);
+    if (!access.siteId) return apiNotFound('Task entry not found');
+    if (!access.ok) return apiForbidden();
+    const siteId = access.siteId;
 
     const body = await req.json();
     const input = taskEntryUpdateSchema.parse(body);

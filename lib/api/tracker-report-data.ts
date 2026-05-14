@@ -8,7 +8,10 @@ import {
   type TrackerRow,
 } from '@/lib/tracker-view';
 import type { ApiCaller } from '@/lib/api/auth';
-import { canReadAtSite, siteIdForSiteTracker } from '@/lib/api/hierarchy-auth';
+import {
+  resolveSiteReadScope,
+  siteIdForSiteTracker,
+} from '@/lib/api/hierarchy-auth';
 import type {
   SiteTracker,
   Task,
@@ -53,7 +56,10 @@ export async function authorizeTrackerReport(
 ) {
   const siteId = await siteIdForSiteTracker(supabase, siteTrackerId);
   if (!siteId) return { ok: false as const, reason: 'not_found' as const };
-  if (!(await canReadAtSite(caller, siteId)).ok) {
+  const scope = await resolveSiteReadScope(caller, siteId);
+  // STAFF cannot pull full-tracker exports — they aggregate every assignee's
+  // data, which is management-level analytics outside a staff member's scope.
+  if (!scope.ok || scope.restrictToAssignee) {
     return { ok: false as const, reason: 'forbidden' as const };
   }
   return { ok: true as const, siteId };

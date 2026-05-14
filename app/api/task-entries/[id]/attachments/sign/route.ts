@@ -8,7 +8,7 @@ import {
   apiNotFound,
   handleUnknownError,
 } from '@/lib/api/response';
-import { canReadAtSite, siteIdForTaskEntry } from '@/lib/api/hierarchy-auth';
+import { canReadTaskEntry } from '@/lib/api/hierarchy-auth';
 import { checkRateLimit } from '@/lib/api/rate-limit';
 import { attachmentSignSchema } from '@/lib/validations/attachment';
 import {
@@ -33,9 +33,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     if (limited) return limited;
 
     const supabase = getSupabaseAdmin();
-    const siteId = await siteIdForTaskEntry(supabase, id);
-    if (!siteId) return apiNotFound('Task entry not found');
-    if (!(await canReadAtSite(caller, siteId)).ok) return apiForbidden();
+    const access = await canReadTaskEntry(supabase, caller, id);
+    if (!access.siteId) return apiNotFound('Task entry not found');
+    if (!access.ok) return apiForbidden();
+    const siteId = access.siteId;
 
     const body = await req.json();
     const input = attachmentSignSchema.parse(body);

@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     const yearParam = req.nextUrl.searchParams.get('year');
     const year = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('site_trackers')
       .select(`
         id, site_id, tracker_category_id, year, is_active, created_at, updated_at,
@@ -42,6 +42,24 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
       .eq('tracker_category.organization_id', caller.organizationId)
       .order('created_at', { ascending: true });
 
+    // STAFF only see trackers that contain at least one task list assigned
+    // to them — the rest is site-wide data outside their scope.
+    if (access.effectiveRole === 'STAFF') {
+      const { data: assigned, error: assignedError } = await supabase
+        .from('task_lists')
+        .select('site_tracker_id, site_tracker:site_trackers!inner(site_id, year)')
+        .eq('assigned_to', caller.userId)
+        .eq('site_tracker.site_id', siteId)
+        .eq('site_tracker.year', year);
+      if (assignedError) throw assignedError;
+      const allowedIds = [
+        ...new Set((assigned ?? []).map((r) => r.site_tracker_id as string)),
+      ];
+      if (allowedIds.length === 0) return apiSuccess([]);
+      query = query.in('id', allowedIds);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return apiSuccess(data ?? []);
   } catch (err) {
