@@ -291,7 +291,7 @@ export default function HolidaysPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete holiday?</AlertDialogTitle>
             <AlertDialogDescription>
-              "{deleteTarget?.name}" will be permanently removed.
+              &ldquo;{deleteTarget?.name}&rdquo; will be permanently removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
