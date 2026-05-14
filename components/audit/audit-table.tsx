@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { AuditLogEntry } from '@/types/domain';
 
 const ENTITY_LABEL: Record<AuditLogEntry['entity_type'], string> = {
@@ -23,6 +24,7 @@ const ENTITY_LABEL: Record<AuditLogEntry['entity_type'], string> = {
   tracker_section: 'Section',
   task_list: 'Task item',
   task: 'Subtask',
+  holiday: 'Holiday',
 };
 
 function actionIcon(action: AuditLogEntry['action']) {
@@ -55,8 +57,17 @@ export function AuditTable({
 }: AuditTableProps) {
   if (isLoading && rows.length === 0) {
     return (
-      <div className="rounded-md border p-8 text-center text-sm text-muted-foreground">
-        Loading audit log...
+      <div className="rounded-md border divide-y">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex items-start gap-3 px-3 py-3">
+            <Skeleton className="mt-0.5 h-4 w-4 shrink-0 rounded-full" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+        ))}
       </div>
     );
   }

@@ -90,14 +90,19 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     if (taskListIds.length > 0) {
       let entriesQuery = supabase
         .from('task_entries')
-        .select('*, marker:users!task_entries_marked_by_fkey(id, name, email, image)')
+        .select('*, marker:users!task_entries_marked_by_fkey(id, name, email, image), attachments(count)')
         .in('task_list_id', taskListIds)
         .order('period_date', { ascending: true })
         .order('period_label', { ascending: true });
       if (query.status) entriesQuery = entriesQuery.eq('status', query.status);
       const entriesResult = await entriesQuery;
       if (entriesResult.error) throw entriesResult.error;
-      entries = entriesResult.data ?? [];
+      // Flatten the embedded count: [{ count: N }] → attachments_count: N
+      entries = (entriesResult.data ?? []).map((e) => ({
+        ...e,
+        attachments_count: (e.attachments as Array<{ count: number }> | null)?.[0]?.count ?? 0,
+        attachments: undefined,
+      }));
     }
 
     return apiSuccess({

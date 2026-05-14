@@ -27,6 +27,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useSites } from '@/hooks/use-sites';
 import { useUsers } from '@/hooks/use-users';
 import { useDashboardSummary } from '@/hooks/use-dashboard-summary';
@@ -121,7 +122,17 @@ function SuperAdminDashboard() {
       >
         <PageCard>
           {sitesQuery.isLoading ? (
-            <div className="p-6 text-sm text-muted-foreground">Loading…</div>
+            <ul className="divide-y divide-border">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <li key={i} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                  <Skeleton className="h-5 w-14 rounded-full" />
+                </li>
+              ))}
+            </ul>
           ) : sites.length === 0 ? (
             <PageEmptyState
               title="No sites yet"
@@ -169,7 +180,18 @@ function MemberDashboard({ role }: { role: SystemRole }) {
 
   if (sitesQuery.isLoading) {
     return (
-      <div className="p-6 text-sm text-muted-foreground">Loading your sites…</div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <PageCard key={i} className="flex items-start justify-between">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+            <Skeleton className="h-11 w-11 rounded-lg" />
+          </PageCard>
+        ))}
+      </div>
     );
   }
 

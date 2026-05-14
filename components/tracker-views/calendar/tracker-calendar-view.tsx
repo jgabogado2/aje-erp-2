@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { TrackerStatusSelect } from '@/components/tracker-views/tracker-status-select';
 import { AttachmentList } from '@/components/attachments/attachment-list';
 import { AttachmentUploader } from '@/components/attachments/attachment-uploader';
+import { Skeleton } from '@/components/ui/skeleton';
 import { statusTone } from '@/lib/tracker-view';
 import { useTrackerEntries, useUpdateTrackerEntry } from '@/hooks/use-tracker-entries';
 import type { Task, TaskEntry, TaskListWithAssignee } from '@/types/domain';
@@ -70,7 +71,15 @@ export function TrackerCalendarView({ siteTrackerId }: { siteTrackerId: string }
   }, [query.data?.entries]);
 
   if (query.isLoading) {
-    return <div className="rounded-md border p-8 text-sm text-muted-foreground">Loading calendar...</div>;
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-10 w-64 rounded-md" />
+        <div className="grid grid-cols-7 overflow-hidden rounded-md border">
+          {Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="m-2 h-6 rounded" />)}
+          {Array.from({ length: 42 }).map((_, i) => <Skeleton key={i} className="m-2 h-32 rounded" />)}
+        </div>
+      </div>
+    );
   }
   if (query.isError || !query.data) {
     return <div className="rounded-md border p-8 text-sm text-destructive">Failed to load calendar.</div>;
@@ -111,7 +120,8 @@ export function TrackerCalendarView({ siteTrackerId }: { siteTrackerId: string }
           </Button>
         </div>
 
-        <div className="grid grid-cols-7 overflow-hidden rounded-md border bg-background">
+        <div className="overflow-x-auto">
+        <div className="grid min-w-[560px] grid-cols-7 overflow-hidden rounded-md border bg-background">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
             <div
               key={day}
@@ -161,6 +171,7 @@ export function TrackerCalendarView({ siteTrackerId }: { siteTrackerId: string }
               </div>
             );
           })}
+        </div>
         </div>
       </div>
 

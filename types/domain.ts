@@ -1,5 +1,6 @@
 import type { SystemRole, SiteRole } from '@/lib/auth.types';
 import type { BirStatus, Frequency, TaskStatus } from '@/lib/tracker.types';
+import type { NotificationKind } from '@/lib/validations/notification';
 import type {
   SectionTemplate,
   TaskListTemplate,
@@ -120,7 +121,8 @@ export interface AuditLogEntry {
     | 'site_tracker'
     | 'tracker_section'
     | 'task_list'
-    | 'task';
+    | 'task'
+    | 'holiday';
   entity_id: string;
   action: 'create' | 'update' | 'delete' | 'status_change';
   old_value: Record<string, unknown> | null;
@@ -132,6 +134,40 @@ export interface AuditLogEntry {
 
 export interface AuditLogPage {
   rows: AuditLogEntry[];
+  next_cursor: string | null;
+}
+
+export interface NotificationPayload {
+  entry_id?: string;
+  task_list_id?: string;
+  task_list_name?: string;
+  site_tracker_id?: string;
+  site_id?: string;
+  period_label?: string;
+  due_date?: string;
+  status?: TaskStatus;
+  [key: string]: unknown;
+}
+
+export interface NotificationEntry {
+  id: string;
+  user_id: string;
+  organization_id: string;
+  site_id: string | null;
+  kind: NotificationKind;
+  title: string;
+  body: string | null;
+  payload: NotificationPayload;
+  dedupe_key: string;
+  read_at: string | null;
+  emailed_at: string | null;
+  created_at: string;
+  site?: { id: string; code: string; name: string } | null;
+}
+
+export interface NotificationPage {
+  rows: NotificationEntry[];
+  unread_count: number;
   next_cursor: string | null;
 }
 
@@ -244,6 +280,8 @@ export interface TaskEntry {
   created_at: string;
   updated_at: string;
   marker?: Pick<UserProfile, 'id' | 'name' | 'email' | 'image'> | null;
+  /** Number of attachments on this entry (populated by the entries list endpoint). */
+  attachments_count?: number;
 }
 
 export interface TaskEntriesPayload {

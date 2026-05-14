@@ -13,7 +13,8 @@ export type AuditEntityType =
   | 'site_tracker'
   | 'tracker_section'
   | 'task_list'
-  | 'task';
+  | 'task'
+  | 'holiday';
 
 export type AuditAction = 'create' | 'update' | 'delete' | 'status_change';
 
@@ -37,8 +38,10 @@ const VOLATILE_FIELDS = new Set(['updated_at', 'created_at']);
  * Returns the per-field diff of two records: { fieldName: { from, to } }.
  * Skips equal fields and timestamps that change on every update. Used to
  * keep audit rows compact even for wide tables.
+ *
+ * Exported for unit testing — it's a pure function with no DB dependency.
  */
-function diffFields(
+export function diffFields(
   oldVal: Record<string, unknown> | null | undefined,
   newVal: Record<string, unknown> | null | undefined
 ): {

@@ -9,6 +9,7 @@ import {
   handleUnknownError,
 } from '@/lib/api/response';
 import { canReadAtSite, siteIdForTaskEntry } from '@/lib/api/hierarchy-auth';
+import { checkRateLimit } from '@/lib/api/rate-limit';
 import { taskEntryUpdateSchema } from '@/lib/validations/task-entry';
 import { checkCutoff } from '@/lib/task-engine';
 import { recordAudit } from '@/lib/api/audit';
@@ -20,6 +21,9 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     const { id } = await params;
     const caller = await getApiCaller();
     if (!caller) return apiUnauthorized();
+
+    const limited = await checkRateLimit(req, 'write', caller.userId);
+    if (limited) return limited;
 
     const supabase = getSupabaseAdmin();
     const siteId = await siteIdForTaskEntry(supabase, id);

@@ -9,6 +9,7 @@ import {
   handleUnknownError,
 } from '@/lib/api/response';
 import { canReadAtSite, siteIdForTaskEntry } from '@/lib/api/hierarchy-auth';
+import { checkRateLimit } from '@/lib/api/rate-limit';
 import { attachmentSignSchema } from '@/lib/validations/attachment';
 import {
   ATTACHMENTS_BUCKET,
@@ -27,6 +28,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const { id } = await params;
     const caller = await getApiCaller();
     if (!caller) return apiUnauthorized();
+
+    const limited = await checkRateLimit(req, 'upload_sign', caller.userId);
+    if (limited) return limited;
 
     const supabase = getSupabaseAdmin();
     const siteId = await siteIdForTaskEntry(supabase, id);

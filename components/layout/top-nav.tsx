@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useTheme } from "next-themes";
 import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { SiteSwitcher } from "@/components/layout/site-switcher";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 // Icons
 const Icons = {
@@ -30,12 +32,6 @@ const Icons = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
       <circle cx="11" cy="11" r="8" />
       <line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
-  ),
-  bell: (props: React.SVGProps<SVGSVGElement>) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>
   ),
   plus: (props: React.SVGProps<SVGSVGElement>) => (
@@ -100,7 +96,6 @@ const Icons = {
 
 interface TopNavProps {
   sidebarCollapsed?: boolean;
-  onSearchClick?: () => void;
   onNotificationsClick?: () => void;
   onNewClick?: () => void;
   leftSlot?: React.ReactNode;
@@ -129,29 +124,16 @@ function UserMenuSkeleton() {
 
 export function TopNav({
   sidebarCollapsed = false,
-  onSearchClick,
   onNotificationsClick,
   onNewClick,
   leftSlot,
   className,
 }: TopNavProps) {
   const { data: session, status } = useSession();
-  const [theme, setTheme] = React.useState<"light" | "dark">("light");
+  const { resolvedTheme, setTheme } = useTheme();
   const [isSigningOut, setIsSigningOut] = React.useState(false);
 
-  // Toggle theme
-  const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    document.documentElement.classList.toggle("dark", newTheme === "dark");
-  };
-
-  // Initialize theme from system preference
-  React.useEffect(() => {
-    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    setTheme(isDark ? "dark" : "light");
-    document.documentElement.classList.toggle("dark", isDark);
-  }, []);
+  const toggleTheme = () => setTheme(resolvedTheme === "dark" ? "light" : "dark");
 
   // Handle sign out
   const handleSignOut = async () => {
@@ -190,34 +172,8 @@ export function TopNav({
           {/* Site switcher */}
           <SiteSwitcher />
 
-          {/* Search */}
-          <Button
-            variant="outline"
-            className="hidden h-9 w-full max-w-sm items-center justify-start gap-2 rounded-lg border-border/50 bg-muted/50 px-3 text-sm text-muted-foreground hover:bg-muted hover:text-foreground md:flex"
-            onClick={onSearchClick}
-          >
-            <Icons.search className="h-4 w-4" />
-            <span className="flex-1 text-left">Search...</span>
-            <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border border-border bg-background px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
-              <Icons.command className="h-3 w-3" />K
-            </kbd>
-          </Button>
-
-          {/* Mobile search button */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 md:hidden"
-                onClick={onSearchClick}
-                aria-label="Search"
-              >
-                <Icons.search className="h-5 w-5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Search</TooltipContent>
-          </Tooltip>
+          {/* Search button intentionally removed in the Phase 4 cleanup pass.
+             A real command palette (Cmd+K) is tracked in PHASE_5_PLAN.md 5b.5. */}
 
           {/* Spacer */}
           <div className="flex-1" />
@@ -264,9 +220,9 @@ export function TopNav({
                   size="icon"
                   className="h-8 w-8"
                   onClick={toggleTheme}
-                  aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+                  aria-label={`Switch to ${resolvedTheme === "dark" ? "light" : "dark"} mode`}
                 >
-                  {theme === "light" ? (
+                  {resolvedTheme === "dark" ? (
                     <Icons.moon className="h-4 w-4" />
                   ) : (
                     <Icons.sun className="h-4 w-4" />
@@ -274,24 +230,14 @@ export function TopNav({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {theme === "light" ? "Dark mode" : "Light mode"}
+                {resolvedTheme === "dark" ? "Light mode" : "Dark mode"}
               </TooltipContent>
             </Tooltip>
 
             {/* Notifications */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="relative h-8 w-8"
-                  onClick={onNotificationsClick}
-                  aria-label="View notifications"
-                >
-                  <Icons.bell className="h-4 w-4" />
-                  {/* Notification indicator */}
-                  <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
-                </Button>
+                <NotificationBell onClick={onNotificationsClick} />
               </TooltipTrigger>
               <TooltipContent>Notifications</TooltipContent>
             </Tooltip>

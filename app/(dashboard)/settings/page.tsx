@@ -2,6 +2,8 @@
 
 import { useSession } from 'next-auth/react';
 import { User, Building2 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   PageContainer,
   PageSection,
@@ -10,6 +12,9 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Select } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { apiClient } from '@/lib/api-client';
 import type { SystemRole } from '@/lib/auth.types';
 
 const ROLE_LABEL: Record<SystemRole, string> = {
@@ -24,6 +29,58 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
       <span className="text-sm text-muted-foreground">{label}</span>
       <span className="text-sm font-medium text-right">{value}</span>
     </div>
+  );
+}
+
+const RETENTION_OPTIONS = [
+  { value: '90', label: '90 days' },
+  { value: '180', label: '180 days' },
+  { value: '365', label: '1 year' },
+  { value: 'null', label: 'Keep forever' },
+];
+
+function AuditRetentionSection() {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ['org-settings', 'retention'],
+    queryFn: () => apiClient.get<{ audit_retention_days: number | null }>('/api/settings/retention'),
+  });
+  const mutation = useMutation({
+    mutationFn: (audit_retention_days: number | null) =>
+      apiClient.patch('/api/settings/retention', { audit_retention_days }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['org-settings', 'retention'] });
+      toast.success('Retention policy saved');
+    },
+    onError: () => toast.error('Failed to save'),
+  });
+
+  const current = query.data?.audit_retention_days;
+  const value = current === null || current === undefined ? 'null' : String(current);
+
+  return (
+    <PageSection
+      title="Audit log retention"
+      description="Automatically delete audit entries older than the chosen window. Applies to your entire organization."
+    >
+      <PageCard>
+        <div className="flex items-center justify-between gap-4">
+          <Label className="text-sm font-medium">Keep audit logs for</Label>
+          <Select
+            value={value}
+            onChange={(e) => mutation.mutate(e.target.value === 'null' ? null : parseInt(e.target.value, 10))}
+            disabled={mutation.isPending || query.isLoading}
+            className="w-44"
+          >
+            {RETENTION_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </PageCard>
+    </PageSection>
   );
 }
 
@@ -112,6 +169,8 @@ export default function SettingsPage() {
             />
           </PageCard>
         </PageSection>
+
+        {role === 'SUPER_ADMIN' && <AuditRetentionSection />}
       </div>
     </PageContainer>
   );
