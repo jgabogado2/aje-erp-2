@@ -14,6 +14,13 @@ export interface PeriodColumn {
   dueDate: string;
 }
 
+/** A run of consecutive period columns that share a month/quarter band. */
+export interface ColumnGroup {
+  label: string;
+  startIndex: number;
+  count: number;
+}
+
 export interface TrackerRow {
   id: string;
   section: TrackerSection | null;
@@ -144,6 +151,34 @@ export function calculateSummary(entries: TaskEntry[], now = new Date()): Tracke
 export function isEntryOverdue(entry: TaskEntry, now = new Date()) {
   if (entry.status === 'DONE' || entry.status === 'DONE_LATE') return false;
   return parseISO(`${entry.due_date}T23:59:59+08:00`).getTime() < now.getTime();
+}
+
+/**
+ * Chunks period columns into month or quarter bands for the grouping header
+ * and "jump to period" navigation. Column widths are uniform, so callers can
+ * derive pixel offsets from `startIndex` directly.
+ */
+export function buildColumnGroups(
+  columns: PeriodColumn[],
+  grouping: 'none' | 'month' | 'quarter'
+): ColumnGroup[] {
+  if (grouping === 'none') return [];
+  const groups: ColumnGroup[] = [];
+  let last = '';
+  columns.forEach((column, index) => {
+    const d = parseISO(`${column.date}T00:00:00Z`);
+    const label =
+      grouping === 'month'
+        ? format(d, 'MMM yyyy')
+        : `Q${Math.floor(d.getUTCMonth() / 3) + 1} ${d.getUTCFullYear()}`;
+    if (label !== last) {
+      groups.push({ label, startIndex: index, count: 1 });
+      last = label;
+    } else {
+      groups[groups.length - 1].count += 1;
+    }
+  });
+  return groups;
 }
 
 export function formatPeriodHeader(column: PeriodColumn, frequency: Frequency) {

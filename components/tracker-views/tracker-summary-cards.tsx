@@ -1,40 +1,34 @@
 'use client';
 
-import { AlertTriangle, CheckCircle2, Clock3, ListTodo } from 'lucide-react';
-import type { TrackerEntriesSummary } from '@/types/domain';
+import type { KpiCardSpec, KpiContext } from '@/lib/tracker-frequency-config';
 
 type FilterKey = string | null;
 
 function SummaryCard({
-  label,
-  value,
-  detail,
-  icon: Icon,
-  filterKey,
+  spec,
+  ctx,
   activeFilter,
   onFilter,
 }: {
-  label: string;
-  value: string | number;
-  detail: string;
-  icon: React.ComponentType<{ className?: string }>;
-  filterKey: FilterKey;
+  spec: KpiCardSpec;
+  ctx: KpiContext;
   activeFilter: FilterKey;
   onFilter: (key: FilterKey) => void;
 }) {
-  const isActive = filterKey !== null && activeFilter === filterKey;
+  const { value, detail } = spec.compute(ctx);
+  const isActive = spec.key !== 'all' && activeFilter === spec.key;
+  const Icon = spec.icon;
+
   return (
     <button
       type="button"
-      onClick={() => onFilter(filterKey)}
+      onClick={() => onFilter(spec.key === 'all' ? null : spec.key)}
       className={`flex w-full items-start justify-between rounded-lg border p-4 text-left transition-colors hover:bg-muted/50 ${
-        isActive
-          ? 'border-primary bg-primary/5 ring-1 ring-primary'
-          : 'bg-card shadow-sm'
+        isActive ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'bg-card shadow-sm'
       }`}
     >
       <div>
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        <p className="text-xs font-medium text-muted-foreground">{spec.label}</p>
         <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
         <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
       </div>
@@ -49,12 +43,18 @@ function SummaryCard({
   );
 }
 
+/**
+ * KPI strip — renders the per-frequency card set from FrequencyConfig. Each
+ * card doubles as a row filter; the `'all'` card clears the active filter.
+ */
 export function TrackerSummaryCards({
-  summary,
+  cards,
+  ctx,
   activeFilter = null,
   onFilter,
 }: {
-  summary: TrackerEntriesSummary;
+  cards: KpiCardSpec[];
+  ctx: KpiContext;
   activeFilter?: FilterKey;
   onFilter?: (key: FilterKey) => void;
 }) {
@@ -62,42 +62,15 @@ export function TrackerSummaryCards({
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <SummaryCard
-        label="Completion"
-        value={`${summary.completion_rate}%`}
-        detail={`${summary.done + summary.done_late} of ${summary.total} complete`}
-        icon={CheckCircle2}
-        filterKey={null}
-        activeFilter={activeFilter}
-        onFilter={handle}
-      />
-      <SummaryCard
-        label="Open"
-        value={summary.not_done}
-        detail={`${summary.ongoing} ongoing`}
-        icon={ListTodo}
-        filterKey="NOT_DONE"
-        activeFilter={activeFilter}
-        onFilter={handle}
-      />
-      <SummaryCard
-        label="Late done"
-        value={summary.done_late}
-        detail="Completed after cutoff"
-        icon={Clock3}
-        filterKey="DONE_LATE"
-        activeFilter={activeFilter}
-        onFilter={handle}
-      />
-      <SummaryCard
-        label="Overdue"
-        value={summary.overdue}
-        detail="Still not complete"
-        icon={AlertTriangle}
-        filterKey="overdue"
-        activeFilter={activeFilter}
-        onFilter={handle}
-      />
+      {cards.map((spec) => (
+        <SummaryCard
+          key={spec.key}
+          spec={spec}
+          ctx={ctx}
+          activeFilter={activeFilter}
+          onFilter={handle}
+        />
+      ))}
     </div>
   );
 }

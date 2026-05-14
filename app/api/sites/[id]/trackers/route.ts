@@ -12,6 +12,7 @@ import {
 } from '@/lib/api/response';
 import { siteTrackerAssignSchema } from '@/lib/validations/tracker';
 import { recordAudit } from '@/lib/api/audit';
+import { generateEntriesForTaskListInDb } from '@/lib/api/task-entry-generation';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -131,6 +132,19 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         return apiConflict('A constraint prevented assigning this tracker. Check the category for duplicate names.');
       }
       throw rpcError;
+    }
+
+    // The RPC seeds task_lists from the category templates but does not
+    // generate task_entries — that's owned by the engine in the API layer.
+    // Without this, template-seeded task lists render with no periods.
+    const { data: seededTaskLists, error: seededError } = await supabase
+      .from('task_lists')
+      .select('id')
+      .eq('site_tracker_id', newId as string);
+    if (seededError) throw seededError;
+
+    for (const taskList of seededTaskLists ?? []) {
+      await generateEntriesForTaskListInDb(supabase, taskList.id as string);
     }
 
     const { data, error } = await supabase
