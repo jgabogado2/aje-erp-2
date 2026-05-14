@@ -339,14 +339,18 @@ export interface DashboardSummary {
   }>;
   overdue_entries: Array<
     TaskEntry & {
-      task_list?: Pick<TaskList, 'id' | 'name' | 'assigned_to'> & {
+      task_list?: Pick<TaskList, 'id' | 'name' | 'assigned_to' | 'site_tracker_id'> & {
+        /** Derived from the entry's site_tracker — enables deep links into the tracker pages. */
+        site_id?: string;
         assignee?: Pick<UserProfile, 'id' | 'name' | 'email' | 'image'> | null;
       };
     }
   >;
   upcoming_entries: Array<
     TaskEntry & {
-      task_list?: Pick<TaskList, 'id' | 'name' | 'assigned_to'> & {
+      task_list?: Pick<TaskList, 'id' | 'name' | 'assigned_to' | 'site_tracker_id'> & {
+        /** Derived from the entry's site_tracker — enables deep links into the tracker pages. */
+        site_id?: string;
         assignee?: Pick<UserProfile, 'id' | 'name' | 'email' | 'image'> | null;
       };
     }

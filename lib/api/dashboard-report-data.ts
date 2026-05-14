@@ -36,6 +36,9 @@ export async function getDashboardReportData(
   if (usersError) throw usersError;
 
   let siteTrackerIds: string[] = [];
+  // site_tracker_id -> site_id, so dashboard entries can deep-link into the
+  // per-site tracker pages without a second round trip.
+  const siteTrackerToSite = new Map<string, string>();
   if (siteIds.length > 0) {
     const { data, error } = await supabase
       .from('site_trackers')
@@ -44,6 +47,9 @@ export async function getDashboardReportData(
       .eq('year', query.year ?? new Date().getFullYear());
     if (error) throw error;
     siteTrackerIds = (data ?? []).map((row) => row.id as string);
+    for (const row of data ?? []) {
+      siteTrackerToSite.set(row.id as string, row.site_id as string);
+    }
   }
 
   let taskListIds: string[] = [];
@@ -60,12 +66,14 @@ export async function getDashboardReportData(
     id: string;
     name: string;
     assigned_to: string | null;
+    site_tracker_id: string;
+    site_id?: string;
     assignee?: { id: string; name: string | null; email: string; image: string | null } | null;
   }> = [];
   if (taskListIds.length > 0) {
     let taskListsQuery = supabase
       .from('task_lists')
-      .select('id, name, assigned_to, assignee:users!task_lists_assigned_to_fkey(id, name, email, image)')
+      .select('id, name, assigned_to, site_tracker_id, assignee:users!task_lists_assigned_to_fkey(id, name, email, image)')
       .in('id', taskListIds);
     if (caller.systemRole === 'STAFF') {
       taskListsQuery = taskListsQuery.eq('assigned_to', caller.userId);
@@ -74,6 +82,7 @@ export async function getDashboardReportData(
     if (error) throw error;
     taskLists = ((data ?? []) as unknown as typeof taskLists).map((taskList) => ({
       ...taskList,
+      site_id: siteTrackerToSite.get(taskList.site_tracker_id),
       assignee: Array.isArray(taskList.assignee)
         ? taskList.assignee[0] ?? null
         : taskList.assignee,

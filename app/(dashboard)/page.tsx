@@ -12,6 +12,7 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  ListChecks,
 } from 'lucide-react';
 import {
   PageContainer,
@@ -209,7 +210,19 @@ function MemberDashboard({ role }: { role: SystemRole }) {
 
   return (
     <>
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button asChild variant="outline" size="sm">
+          <Link href="/trackers">
+            <ListChecks className="mr-2 h-4 w-4" />
+            View trackers
+          </Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/trackers?tab=overdue">
+            <Clock3 className="mr-2 h-4 w-4" />
+            Review overdue
+          </Link>
+        </Button>
         <DashboardExportDropdown siteId={currentSiteId ?? undefined} />
       </div>
 
@@ -290,6 +303,48 @@ function DashboardExportDropdown({ siteId }: { siteId?: string }) {
   );
 }
 
+type DashboardEntry = NonNullable<
+  ReturnType<typeof useDashboardSummary>['data']
+>['overdue_entries'][number];
+
+// Entries carry their site + site_tracker ids so the dashboard can deep-link
+// straight into the task page. Falls back to a plain row if the ids are
+// missing (e.g. an unassigned task list).
+function EntryListItem({ entry }: { entry: DashboardEntry }) {
+  const siteId = entry.task_list?.site_id;
+  const trackerId = entry.task_list?.site_tracker_id;
+  const href =
+    siteId && trackerId
+      ? `/sites/${siteId}/trackers/${trackerId}/tasks/${entry.task_list_id}`
+      : null;
+
+  const body = (
+    <>
+      <p className="truncate text-sm font-medium">
+        {entry.task_list?.name ?? 'Task entry'}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        {entry.period_label} · due {entry.due_date}
+      </p>
+    </>
+  );
+
+  if (!href) {
+    return <li className="py-3 first:pt-0 last:pb-0">{body}</li>;
+  }
+
+  return (
+    <li className="first:pt-0 last:pb-0">
+      <Link
+        href={href}
+        className="block rounded-md py-3 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
+      >
+        {body}
+      </Link>
+    </li>
+  );
+}
+
 function DashboardLists({ summary }: { summary?: ReturnType<typeof useDashboardSummary>['data'] }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -298,12 +353,7 @@ function DashboardLists({ summary }: { summary?: ReturnType<typeof useDashboardS
           {summary?.overdue_entries.length ? (
             <ul className="divide-y">
               {summary.overdue_entries.map((entry) => (
-                <li key={entry.id} className="py-3 first:pt-0 last:pb-0">
-                  <p className="text-sm font-medium">{entry.task_list?.name ?? 'Task entry'}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {entry.period_label} · due {entry.due_date}
-                  </p>
-                </li>
+                <EntryListItem key={entry.id} entry={entry} />
               ))}
             </ul>
           ) : (
@@ -316,12 +366,7 @@ function DashboardLists({ summary }: { summary?: ReturnType<typeof useDashboardS
           {summary?.upcoming_entries.length ? (
             <ul className="divide-y">
               {summary.upcoming_entries.map((entry) => (
-                <li key={entry.id} className="py-3 first:pt-0 last:pb-0">
-                  <p className="text-sm font-medium">{entry.task_list?.name ?? 'Task entry'}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {entry.period_label} · due {entry.due_date}
-                  </p>
-                </li>
+                <EntryListItem key={entry.id} entry={entry} />
               ))}
             </ul>
           ) : (
